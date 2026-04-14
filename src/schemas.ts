@@ -1,0 +1,23 @@
+/**
+ * Collection Schemas
+ *
+ * All collections with columns and RBAC permissions.
+ * Single source of truth — imported by both worker and frontend.
+ */
+
+import type { CollectionSchema } from 'deepspace/worker'
+import { usersSchema } from './schemas/users-schema'
+import { settingsSchema } from './schemas/admin-schema'
+import { profilesSchema } from './schemas/profiles-schema'
+import { resumesSchema } from './schemas/resumes-schema'
+import { resumeVersionsSchema } from './schemas/resume-versions-schema'
+import { editorSettingsSchema } from './schemas/editor-settings-schema'
+
+export const schemas: CollectionSchema[] = [
+  usersSchema,
+  settingsSchema,
+  profilesSchema,
+  resumesSchema,
+  resumeVersionsSchema,
+  editorSettingsSchema,
+]
