@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutations, useUser } from 'deepspace'
 import { DEFAULT_SETTINGS } from '../constants'
 import type { Compiler } from '../constants'
+import { THEME_STORAGE_KEY } from './useThemeSync'
 
 export interface EditorSettings {
   theme: 'light' | 'dark'
@@ -37,6 +38,30 @@ function normalizeSettings(data?: Partial<EditorSettings>): EditorSettings {
   }
 }
 
+/**
+ * Synchronously read the user's cached theme — the same value written by
+ * `useThemeSync` and restored by the pre-boot script in `index.html`.
+ * Used to seed the initial `backgroundId` so AppShell's first render
+ * doesn't compute the wrong theme from DEFAULT_SETTINGS (which pins
+ * `backgroundId` to a dark image) while the server record is still in
+ * flight.
+ */
+function seedInitialSettings(): EditorSettings {
+  let cachedTheme: 'light' | 'dark' | null = null
+  try {
+    const t = localStorage.getItem(THEME_STORAGE_KEY)
+    if (t === 'light' || t === 'dark') cachedTheme = t
+  } catch { /* ignore */ }
+
+  // If the last session was light-themed, the app used the `'light'`
+  // background. Seed that so `themeForBackground(backgroundId)` in
+  // AppShell produces `light` on the very first render.
+  if (cachedTheme === 'light') {
+    return normalizeSettings({ backgroundId: 'light' })
+  }
+  return normalizeSettings()
+}
+
 function areSettingsEqual(a: EditorSettings, b: EditorSettings): boolean {
   return (
     a.theme === b.theme &&
@@ -52,9 +77,7 @@ export function useEditorSettings() {
   const { records, status } = useQuery('editorSettings')
   const { createConfirmed, put } = useMutations('editorSettings')
 
-  const [localSettings, setLocalSettings] = useState<EditorSettings>(
-    normalizeSettings(),
-  )
+  const [localSettings, setLocalSettings] = useState<EditorSettings>(seedInitialSettings)
   // `latestRef` always holds the most recent `localSettings` so the updater
   // callbacks below can compute `next` without going through the setState
   // function (which React may double-invoke under strict mode, causing a

@@ -1421,7 +1421,10 @@ body.modal-open .app-shell {
 }
 
 .home-tab.active {
-  @apply text-accent;
+  /* Use `text-primary` — `text-accent` resolves to a tinted BACKGROUND
+     color in shadcn's palette (`#f1f5f9` in light mode), which renders as
+     near-white text and disappears against the white tab background. */
+  @apply text-primary;
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

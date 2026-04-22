@@ -8,17 +8,11 @@
 import React, { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-import { useEditorSettings } from '../hooks'
-import { useThemeSync } from '../hooks/useThemeSync'
-import { themeForBackground } from '../utils/themeForBackground'
 import SettingsPanelContent from '../components/settings/SettingsPanelContent'
 
 export default function SettingsPage() {
   const navigate = useNavigate()
-  const { settings } = useEditorSettings()
-
-  const isDark = themeForBackground(settings.backgroundId) === 'dark'
-  useThemeSync(isDark ? 'dark' : 'light')
+  // Theme sync lives at AppShell level (src/pages/_app.tsx).
 
   const handleBack = useCallback(() => {
     navigate('/home')

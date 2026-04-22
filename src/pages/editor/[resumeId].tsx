@@ -9,8 +9,6 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import { ArrowLeft, Play, Download, Save, Sparkles, SquarePen, X } from 'lucide-react'
 import { useEditorSettings, useResumes, useProfiles, useResumeForm, useCompilation, usePanelResize, useLatexGenerator, useLatexOverride, useVersionHistory } from '../../hooks'
-import { useThemeSync } from '../../hooks/useThemeSync'
-import { themeForBackground } from '../../utils/themeForBackground'
 import { ResizeDivider } from '../../components/shared/ResizeDivider'
 import { CompileLog } from '../../components/shared/CompileLog'
 import SaveProfileModal from '../../components/shared/SaveProfileModal'
@@ -37,9 +35,10 @@ export default function EditorPage() {
   const { resumes, isReady: resumesReady, updateResume } = useResumes()
   const { profiles, updateProfile, createProfile } = useProfiles()
 
-  const derivedTheme = themeForBackground(settings.backgroundId)
-  useThemeSync(derivedTheme)
-  const isDark = derivedTheme === 'dark'
+  // Theme sync is handled once at AppShell level (src/pages/_app.tsx) —
+  // don't re-sync here, otherwise each page's local `useEditorSettings`
+  // instance flashes its pre-load default (metropolitan-city → dark)
+  // over the already-correct theme during route transitions.
 
   const resumeExists = useMemo(() => {
     if (!resumesReady || !resumeId) return undefined

@@ -183,7 +183,10 @@ export const COMPILERS: { id: Compiler; label: string }[] = [
 // ============================================================================
 
 export const DEFAULT_SETTINGS = {
-  theme: 'light' as 'light' | 'dark',
+  // `theme` is derived from `backgroundId` for mode (via
+  // `themeForBackground`) — keep them consistent so a cold start
+  // matches the pre-boot script's default (`dark`).
+  theme: 'dark' as 'light' | 'dark',
   defaultTemplate: 'modern',
   defaultCompiler: 'pdflatex' as Compiler,
   activeResumeId: null as string | null,

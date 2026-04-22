@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DeepSpace App</title>
+    <title>Resume Builder</title>
+    <script>
+      // Apply the cached theme BEFORE React boots so there is no flash of
+      // the wrong mode on reload or deep-link to any route. The key is
+      // mirrored by `useThemeSync` in React-land — keep it in sync if
+      // renamed. Default is `dark` (matches DEFAULT_SETTINGS.backgroundId).
+      (function () {
+        try {
+          var t = localStorage.getItem('resume-theme')
+          if (t === 'light') {
+            document.documentElement.classList.remove('dark')
+          } else {
+            document.documentElement.classList.add('dark')
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

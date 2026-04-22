@@ -17,7 +17,6 @@ import { ConfirmModal, SkeletonCard } from '../components/ui'
 import { useTipRotation, useResumes, useProfiles, useEditorSettings } from '../hooks'
 import type { Profile, Resume } from '../hooks'
 import { useRobotContext } from '../hooks/useRobotContext'
-import { useThemeSync } from '../hooks/useThemeSync'
 import { themeForBackground } from '../utils/themeForBackground'
 import { TEMPLATE_METADATA, DEFAULT_SETTINGS } from '../constants'
 import type { TemplateMetadata } from '../constants'
@@ -77,8 +76,10 @@ export default function HomePage() {
   const navigate = useNavigate()
   const { settings, updateSetting } = useEditorSettings()
 
+  // Theme sync lives at AppShell level (src/pages/_app.tsx); re-syncing
+  // here would flash the pre-load default over the correct theme during
+  // navigation. Still derive `isDark` for the sun/moon toggle UI.
   const isDark = themeForBackground(settings.backgroundId) === 'dark'
-  useThemeSync(isDark ? 'dark' : 'light')
 
   const previousBgRef = useRef<string>(settings.backgroundId)
 
@@ -297,7 +298,7 @@ export default function HomePage() {
                     <FileText className="w-3.5 h-3.5" />
                     My Resumes
                     {resumesReady && resumes.length > 0 ? (
-                      <span className="ml-1 text-xs bg-accent/10 text-accent px-1.5 py-0.5 rounded-full">
+                      <span className="ml-1 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
                         {resumes.length}
                       </span>
                     ) : null}
