@@ -11,7 +11,15 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-primary text-primary-foreground shadow hover:bg-primary/90',
+        // `primary` and `danger` are semantic aliases the app uses
+        // throughout — they map to the same styles as `default` and
+        // `destructive`. Keeps call-sites readable ("primary CTA",
+        // "danger action") without adding any new design tokens.
+        primary:
+          'bg-primary text-primary-foreground shadow hover:bg-primary/90',
         destructive:
+          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+        danger:
           'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
         outline:
           'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',

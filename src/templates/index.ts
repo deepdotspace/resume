@@ -29,4 +29,16 @@ export function generateLatexForTemplate(templateId: TemplateId, data: ResumeFor
   return fn(data)
 }
 
-export type { ResumeFormData, LanguageEntry, CefrSkills, PersonalInfo, CustomSection, CustomEntry } from './types'
+export type {
+  ResumeFormData,
+  PersonalInfo,
+  ExperienceEntry,
+  EducationEntry,
+  SkillGroup,
+  LanguageEntry,
+  CefrSkills,
+  CertificationEntry,
+  ProjectEntry,
+  CustomSection,
+  CustomEntry,
+} from './types'

@@ -24,29 +24,41 @@ export function useTipRotation() {
     return RESUME_TIPS[nextIdx]
   }, [])
 
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const rotateTip = useCallback(() => {
-    // Fade out
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
+    if (showTimerRef.current) clearTimeout(showTimerRef.current)
+
     setVisible(false)
 
-    setTimeout(() => {
+    fadeTimerRef.current = setTimeout(() => {
       const nextTip = pickNextTip()
       setCurrentTip(nextTip)
 
-      // Trigger robot animation
       if (robotRef.current) {
         const anim = TIP_ANIMATIONS[Math.floor(Math.random() * TIP_ANIMATIONS.length)]
         robotRef.current.playAnimation(anim)
       }
 
-      // Fade in
-      setTimeout(() => setVisible(true), 200)
+      showTimerRef.current = setTimeout(() => setVisible(true), 200)
     }, 300)
   }, [pickNextTip])
 
-  // New random quote every time user comes to dashboard (mount)
+  // New random quote every time the user lands on the dashboard (mount).
   useEffect(() => {
     setCurrentTip(pickNextTip())
   }, [pickNextTip])
+
+  // Clear pending timers on unmount so a late callback doesn't set state
+  // on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
+      if (showTimerRef.current) clearTimeout(showTimerRef.current)
+    }
+  }, [])
 
   return { currentTip, visible, robotRef, rotateTip }
 }

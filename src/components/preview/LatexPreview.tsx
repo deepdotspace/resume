@@ -1,10 +1,11 @@
 /**
  * LatexPreview — read-only or editable LaTeX source display.
  *
- * When editable=true, renders a textarea for direct LaTeX editing (override mode).
+ * When `editable`, the textarea is fully controlled by `content`/`onChange`.
+ * Read-only mode renders a `<pre>` so the source is still selectable.
  */
 
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback } from 'react'
 
 interface LatexPreviewProps {
   content: string
@@ -13,23 +14,12 @@ interface LatexPreviewProps {
 }
 
 export function LatexPreview({ content, editable = false, onChange }: LatexPreviewProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       onChange?.(e.target.value)
     },
     [onChange]
   )
-
-  // Sync external content into textarea when it changes (e.g. from storage)
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el || !editable) return
-    if (el.value !== content) {
-      el.value = content
-    }
-  }, [content, editable])
 
   const editorStyles =
     'w-full h-full min-h-[200px] p-4 text-xs font-mono ' +
@@ -41,8 +31,11 @@ export function LatexPreview({ content, editable = false, onChange }: LatexPrevi
     return (
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden latex-editor-light">
         <textarea
-          ref={textareaRef}
-          defaultValue={content}
+          // Controlled input — the parent owns the string, and the debounce
+          // that persists to storage lives there. Being controlled means the
+          // user's caret and selection aren't clobbered when a new content
+          // value arrives (e.g. a fresh compile or an agent-driven update).
+          value={content}
           onChange={handleChange}
           className={editorStyles}
           style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace" }}

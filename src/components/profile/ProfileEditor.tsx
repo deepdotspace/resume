@@ -78,7 +78,7 @@ interface ProfileEditorProps {
     certifications: Profile['data']['certifications']
     projects: Profile['data']['projects']
     customSections: Profile['data']['customSections']
-  }) => void
+  }) => void | Promise<void>
 }
 
 export function ProfileEditor({ open, onClose, profile, onSave }: ProfileEditorProps) {
@@ -131,21 +131,29 @@ export function ProfileEditor({ open, onClose, profile, onSave }: ProfileEditorP
   }, [])
 
   const handleSave = async () => {
+    if (saving) return
     setSaving(true)
-    onSave({
-      title: profileName.trim() || formData.personalInfo?.name || 'Untitled Profile',
-      personalInfo: formData.personalInfo ?? DEFAULT_PERSONAL_INFO,
-      summary: formData.summary,
-      experience: formData.experience,
-      education: formData.education,
-      skills: formData.skills,
-      languages: formData.languages,
-      certifications: formData.certifications,
-      projects: formData.projects,
-      customSections: formData.customSections,
-    })
-    setSaving(false)
-    onClose()
+    try {
+      await onSave({
+        title: profileName.trim() || formData.personalInfo?.name || 'Untitled Profile',
+        personalInfo: formData.personalInfo ?? DEFAULT_PERSONAL_INFO,
+        summary: formData.summary,
+        experience: formData.experience,
+        education: formData.education,
+        skills: formData.skills,
+        languages: formData.languages,
+        certifications: formData.certifications,
+        projects: formData.projects,
+        customSections: formData.customSections,
+      })
+      onClose()
+    } catch (err) {
+      console.error('[ProfileEditor] save failed:', err)
+      // Keep the modal open on failure so the user can retry without losing
+      // their edits.
+    } finally {
+      setSaving(false)
+    }
   }
 
   const sectionOrder = DEFAULT_SECTION_ORDER
@@ -155,8 +163,7 @@ export function ProfileEditor({ open, onClose, profile, onSave }: ProfileEditorP
       open={open}
       onClose={onClose}
       size="xl"
-      overlayAnimated={false}
-      panelClassName="profile-editor-modal-panel"
+      className="profile-editor-modal-panel"
     >
       <Modal.Header onClose={onClose}>
         <Modal.Title>{profile ? 'Edit profile' : 'Add profile'}</Modal.Title>

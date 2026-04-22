@@ -121,10 +121,13 @@ export default function HomePage() {
     const map: Record<string, { pdfData: string; versionNum: number }> = {}
     for (const r of versionRecords) {
       if (r.createdBy !== user.id) continue
-      const resumeId = r.data.resumeId as string
-      const versionNum = r.data.versionNum as number
-      const pdfData = r.data.pdfData as string
-      if (!resumeId || !pdfData) continue
+      // `records[].data` is `unknown` from the SDK (schema-agnostic). Narrow
+      // at the access site; the schema guarantees these three fields exist.
+      const data = r.data as { resumeId?: string; versionNum?: number; pdfData?: string }
+      const resumeId = data.resumeId
+      const versionNum = data.versionNum
+      const pdfData = data.pdfData
+      if (!resumeId || !pdfData || typeof versionNum !== 'number') continue
       if (!map[resumeId] || versionNum > map[resumeId].versionNum) {
         map[resumeId] = { pdfData, versionNum }
       }
@@ -242,10 +245,14 @@ export default function HomePage() {
     updateResume(id, { title: newTitle })
   }
 
-  const handleDeleteConfirm = () => {
-    if (deleteTarget) {
-      deleteResume(deleteTarget)
-      setDeleteTarget(null)
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    const id = deleteTarget
+    setDeleteTarget(null)
+    try {
+      await deleteResume(id)
+    } catch (err) {
+      console.error('[deleteResume] failed:', err)
     }
   }
 

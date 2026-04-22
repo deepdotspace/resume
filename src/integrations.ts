@@ -10,7 +10,7 @@
  */
 
 export const integrations: Record<string, { billing: 'developer' | 'user' }> = {
-  'latex-compiler': { billing: 'developer' },
-  openai: { billing: 'developer' },
-  anthropic: { billing: 'developer' },
+  'latex-compiler': { billing: 'user' },
+  openai: { billing: 'user' },
+  anthropic: { billing: 'user' },
 }

@@ -44,6 +44,10 @@ export function PhotoUpload({ value, onChange, readOnly, label = 'Profile photo'
 
   const handleRemove = (e: React.MouseEvent) => {
     e.preventDefault()
+    // Stop bubbling to the outer upload zone — otherwise clicking the remove
+    // button also triggers the zone's click handler and immediately reopens
+    // the file picker.
+    e.stopPropagation()
     if (readOnly) return
     onChange('')
   }

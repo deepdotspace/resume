@@ -5,7 +5,7 @@
  */
 
 import type { ResumeFormData } from './types'
-import { escapeLatex } from './latexEscape'
+import { escapeLatex, escapeLatexUrl } from './latexEscape'
 
 export function generateLatex(data: ResumeFormData): string {
   const p = data.personalInfo
@@ -17,9 +17,9 @@ export function generateLatex(data: ResumeFormData): string {
 
   const contactParts: string[] = []
   if (phone) contactParts.push(phone)
-  if (email) contactParts.push(`\\href{mailto:${escapeLatex(email)}}{\\underline{${escapeLatex(email)}}}`)
-  if (linkedin) contactParts.push(`\\href{${escapeLatex(linkedin)}}{\\underline{linkedin.com/in/...}}`)
-  if (website) contactParts.push(`\\href{${escapeLatex(website)}}{\\underline{${escapeLatex(website)}}}`)
+  if (email) contactParts.push(`\\href{mailto:${escapeLatexUrl(email)}}{\\underline{${escapeLatex(email)}}}`)
+  if (linkedin) contactParts.push(`\\href{${escapeLatexUrl(linkedin)}}{\\underline{linkedin.com/in/...}}`)
+  if (website) contactParts.push(`\\href{${escapeLatexUrl(website)}}{\\underline{${escapeLatex(website)}}}`)
   const contactLine = contactParts.join(' $|$ ')
 
   let body = ''
@@ -64,7 +64,7 @@ export function generateLatex(data: ResumeFormData): string {
     for (const proj of data.projects) {
       if (!proj.name && !proj.description) continue
       const projName = escapeLatex(proj.name || 'Project')
-      const link = proj.url?.trim() ? ` $|$ \\href{${escapeLatex(proj.url)}}{\\underline{Link}}` : ''
+      const link = proj.url?.trim() ? ` $|$ \\href{${escapeLatexUrl(proj.url)}}{\\underline{Link}}` : ''
       const desc = proj.description?.trim() ? ` $|$ \\emph{${escapeLatex(proj.description)}}` : ''
       body += `    \\resumeProjectHeading{\\textbf{${projName}}${desc}${link}}{}\n`
       if (proj.bullets?.length) {

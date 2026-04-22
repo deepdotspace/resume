@@ -2640,3 +2640,144 @@ body.modal-open .app-shell {
   background: #6366F1;
   box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
 }
+
+/* ============================================================================
+ * AI Chat — prose, tool-row, and live-state styles.
+ *
+ * Mirrors the hardened UX from latex-editor2. Self-contained: uses the
+ * app's --color-* tokens so it adapts to light/dark/glass themes.
+ * ============================================================================ */
+
+.chat-prose {
+  color: var(--color-content);
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.chat-prose > * + * { margin-top: 8px; }
+
+.chat-prose p { margin: 0; }
+.chat-prose ul,
+.chat-prose ol { margin: 0; padding-left: 18px; }
+.chat-prose ul { list-style: disc; }
+.chat-prose ol { list-style: decimal; }
+.chat-prose li + li { margin-top: 3px; }
+.chat-prose li > p { margin: 0; }
+
+.chat-prose strong { font-weight: 600; color: var(--color-content); }
+.chat-prose em { font-style: italic; }
+
+.chat-prose a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.chat-prose a:hover { text-decoration-thickness: 1.5px; }
+
+.chat-prose code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-surface-inset);
+  color: var(--color-content);
+}
+
+.chat-prose pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--color-surface-inset);
+  border: 1px solid var(--color-border);
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.chat-prose pre code {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.chat-prose h1,
+.chat-prose h2,
+.chat-prose h3,
+.chat-prose h4 {
+  margin: 0;
+  color: var(--color-content);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.chat-prose h1 { font-size: 15.5px; }
+.chat-prose h2 { font-size: 14.5px; }
+.chat-prose h3,
+.chat-prose h4 { font-size: 13.5px; }
+
+.chat-prose blockquote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--color-border);
+  color: var(--color-content-secondary);
+}
+
+.chat-prose table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.chat-prose th,
+.chat-prose td {
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.chat-prose th {
+  background: var(--color-surface-inset);
+  font-weight: 600;
+}
+
+.chat-prose hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.chat-turn-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--color-border), transparent);
+  opacity: 0.7;
+  margin: 10px 0;
+}
+
+@keyframes chat-pulse-soft {
+  0%, 100% { opacity: 0.28; transform: scale(1); }
+  50%      { opacity: 0.9;  transform: scale(1.08); }
+}
+
+.chat-live-dot {
+  animation: chat-pulse-soft 1.6s ease-in-out infinite;
+}
+
+@keyframes chat-dot-bounce {
+  0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+  40%           { opacity: 1;   transform: translateY(-1.5px); }
+}
+
+.chat-dot-1 { animation: chat-dot-bounce 1.2s ease-in-out infinite; animation-delay: 0ms; }
+.chat-dot-2 { animation: chat-dot-bounce 1.2s ease-in-out infinite; animation-delay: 150ms; }
+.chat-dot-3 { animation: chat-dot-bounce 1.2s ease-in-out infinite; animation-delay: 300ms; }
+
+@keyframes chat-tool-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.chat-tool-shimmer {
+  background-image: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-primary) 10%, transparent) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: chat-tool-shimmer 2.2s linear infinite;
+}

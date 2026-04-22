@@ -65,11 +65,28 @@ function LogEntry({
     : severity === 'warning' ? 'compile-log-item-warning'
     : 'compile-log-item-muted'
 
+  const toggleExpanded = () => { if (hasContext) setExpanded(!expanded) }
+  const onHeaderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!hasContext) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      setExpanded((prev) => !prev)
+    }
+  }
+
   return (
     <div className={`compile-log-item ${severityClass}`}>
-      <button
+      {/* The header is a clickable row rather than a `<button>` because it
+          contains a sibling "jump to line" `<button>`. Nested `<button>`
+          elements are invalid HTML and break keyboard focus; instead we
+          make the row a role="button" with its own keyboard handler. */}
+      <div
         className="compile-log-item-header"
-        onClick={() => hasContext && setExpanded(!expanded)}
+        role={hasContext ? 'button' : undefined}
+        tabIndex={hasContext ? 0 : undefined}
+        aria-expanded={hasContext ? expanded : undefined}
+        onClick={toggleExpanded}
+        onKeyDown={onHeaderKeyDown}
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
           className={`shrink-0 transition-transform duration-150 ${hasContext ? (expanded ? 'rotate-90' : '') : 'opacity-0'}`}>
@@ -83,6 +100,7 @@ function LogEntry({
         {item.file && <span className="compile-log-item-file">{item.file}</span>}
         {item.line != null && (
           <button
+            type="button"
             className="compile-log-item-line"
             onClick={(e) => { e.stopPropagation(); onJumpToLine?.(item.line!, item.file) }}
             title={`Go to line ${item.line}`}
@@ -90,7 +108,7 @@ function LogEntry({
             L{item.line}
           </button>
         )}
-      </button>
+      </div>
       {expanded && hasContext && (
         <pre className="compile-log-item-context">{item.context}</pre>
       )}

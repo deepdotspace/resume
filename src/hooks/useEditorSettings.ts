@@ -1,8 +1,12 @@
 /**
  * useEditorSettings — per-user resume builder preferences and onboarding state.
  *
- * Reads own record on mount; creates one with defaults if none exists.
- * Provides optimistic updates backed by the editorSettings collection.
+ * Reads the user's own record on mount; bootstraps one if absent. Provides
+ * optimistic updates backed by the `editorSettings` collection.
+ *
+ * Bootstrap uses `createConfirmed` + a module-level per-user in-flight
+ * guard, so concurrent mounts (from the editor page + home page, or two
+ * tabs) don't each race to create a duplicate row.
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -17,6 +21,11 @@ export interface EditorSettings {
   activeResumeId: string | null
   backgroundId: string
 }
+
+// Module-level flight guard keyed by userId. Two calls that happen during
+// the same render pass for the same user share the same promise and resolve
+// to the same recordId.
+const bootstrapInFlight = new Map<string, Promise<string>>()
 
 function normalizeSettings(data?: Partial<EditorSettings>): EditorSettings {
   return {
@@ -41,11 +50,17 @@ function areSettingsEqual(a: EditorSettings, b: EditorSettings): boolean {
 export function useEditorSettings() {
   const { user } = useUser()
   const { records, status } = useQuery('editorSettings')
-  const { create, put } = useMutations('editorSettings')
+  const { createConfirmed, put } = useMutations('editorSettings')
 
   const [localSettings, setLocalSettings] = useState<EditorSettings>(
     normalizeSettings(),
   )
+  // `latestRef` always holds the most recent `localSettings` so the updater
+  // callbacks below can compute `next` without going through the setState
+  // function (which React may double-invoke under strict mode, causing a
+  // duplicate `put`).
+  const latestRef = useRef(localSettings)
+  latestRef.current = localSettings
   const recordIdRef = useRef<string | null>(null)
   const initializedRef = useRef(false)
 
@@ -61,13 +76,28 @@ export function useEditorSettings() {
       recordIdRef.current = ownRecord.recordId
       setLocalSettings(normalizeSettings(ownRecord.data as Partial<EditorSettings>))
       initializedRef.current = true
-    } else {
-      create(DEFAULT_SETTINGS as Record<string, unknown>).then(id => {
-        if (id) recordIdRef.current = id
-        initializedRef.current = true
-      })
+      return
     }
-  }, [status, user, ownRecord, create])
+
+    // No own record — bootstrap. Share the promise across concurrent mounts
+    // for the same user to avoid creating duplicate rows.
+    const userId = user.id
+    let promise = bootstrapInFlight.get(userId)
+    if (!promise) {
+      promise = createConfirmed(DEFAULT_SETTINGS as Record<string, unknown>)
+        .finally(() => bootstrapInFlight.delete(userId))
+      bootstrapInFlight.set(userId, promise)
+    }
+    let cancelled = false
+    promise.then((id) => {
+      if (cancelled) return
+      recordIdRef.current = id
+      initializedRef.current = true
+    }).catch((err) => {
+      console.error('[useEditorSettings] bootstrap failed:', err)
+    })
+    return () => { cancelled = true }
+  }, [status, user, ownRecord, createConfirmed])
 
   useEffect(() => {
     if (!initializedRef.current || !ownRecord) return
@@ -78,26 +108,24 @@ export function useEditorSettings() {
 
   const updateSetting = useCallback(
     <K extends keyof EditorSettings>(key: K, value: EditorSettings[K]) => {
-      setLocalSettings(prev => {
-        const next = { ...prev, [key]: value }
-        if (recordIdRef.current) {
-          put(recordIdRef.current, next as Record<string, unknown>)
-        }
-        return next
-      })
+      const next = { ...latestRef.current, [key]: value }
+      latestRef.current = next
+      setLocalSettings(next)
+      if (recordIdRef.current) {
+        put(recordIdRef.current, next as Record<string, unknown>)
+      }
     },
     [put],
   )
 
   const updateSettings = useCallback(
     (partial: Partial<EditorSettings>) => {
-      setLocalSettings(prev => {
-        const next = { ...prev, ...partial }
-        if (recordIdRef.current) {
-          put(recordIdRef.current, next as Record<string, unknown>)
-        }
-        return next
-      })
+      const next = { ...latestRef.current, ...partial }
+      latestRef.current = next
+      setLocalSettings(next)
+      if (recordIdRef.current) {
+        put(recordIdRef.current, next as Record<string, unknown>)
+      }
     },
     [put],
   )

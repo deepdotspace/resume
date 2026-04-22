@@ -1,84 +1,46 @@
 /**
  * AI Tool Definitions — converts DeepSpace BUILT_IN_TOOLS to Vercel AI SDK tools.
  *
- * Only exposes read-only tools so the assistant can inspect data but never mutate it.
+ * `buildChatTools` is the only public factory. It exposes records.query/get +
+ * records.create/update/delete so the in-editor chat can read and mutate the
+ * user's own resumes. RBAC is enforced server-side against the caller's role.
+ *
+ * Tool names that contain a dot (e.g. `records.create`) are rewritten to
+ * underscore form (`records_create`) for the AI SDK, which forbids dots in
+ * tool names. The DO-side executor still receives the dotted form.
  */
 
-import { tool } from 'ai'
+import { tool, type Tool } from 'ai'
 import { z } from 'zod'
 import { BUILT_IN_TOOLS } from 'deepspace/worker'
-import type { ToolSchema, CollectionSchema } from 'deepspace/worker'
+import type { ToolSchema } from 'deepspace/worker'
 
 type ToolExecutor = (toolName: string, params: Record<string, unknown>) => Promise<unknown>
 
-const READ_ONLY_TOOL_NAMES = [
-  'schema.list',
-  'schema.describe',
+const CHAT_TOOL_NAMES = [
   'records.query',
   'records.get',
-  'user.current',
+  'records.create',
+  'records.update',
+  'records.delete',
 ]
 
-// ============================================================================
-// System prompt
-// ============================================================================
-
-type Interpretation = CollectionSchema['columns'][number]['interpretation']
-
-/**
- * Interpretation is `string | Record<string, unknown>`. When it's an object
- * the convention across the SDK's built-in schemas is `{ kind: string, ... }`
- * (see `server/schemas/directory.ts`). Narrow safely to a human-readable name.
- */
-function interpretationLabel(interpretation: Interpretation): string {
-  if (typeof interpretation === 'string') return interpretation
-  const kind = interpretation.kind
-  return typeof kind === 'string' ? kind : 'object'
-}
-
-export function buildSystemPrompt(appName: string, schemas: CollectionSchema[]): string {
-  const schemaSummary = schemas
-    .map((s) => {
-      const cols = (s.columns ?? [])
-        .map((c) => `${c.name}:${interpretationLabel(c.interpretation)}${c.required ? '!' : ''}`)
-        .join(', ')
-      return `- ${s.name}${cols ? ` (${cols})` : ''}`
-    })
-    .join('\n')
-
-  return [
-    `You are the assistant for the "${appName}" app on DeepSpace.`,
-    'You are read-only — you can inspect data but never create, update, or delete anything.',
-    'Use the available tools to look up facts before answering. Do not invent data.',
-    'If data is missing, say so plainly. Keep answers concise.',
-    '',
-    'Available collections:',
-    schemaSummary || '(none)',
-  ].join('\n')
-}
-
-// ============================================================================
-// Tool definitions
-// ============================================================================
-
-export function buildReadOnlyTools(executor: ToolExecutor) {
-  const tools: Record<string, ReturnType<typeof tool>> = {}
-
+export function buildChatTools(executor: ToolExecutor): Record<string, Tool> {
+  const tools: Record<string, Tool> = {}
   for (const def of BUILT_IN_TOOLS) {
-    if (!READ_ONLY_TOOL_NAMES.includes(def.name)) continue
-    const safeName = def.name.replace('.', '_')
+    if (!CHAT_TOOL_NAMES.includes(def.name)) continue
+    const safeName = def.name.replaceAll('.', '_')
     tools[safeName] = tool({
       description: def.description,
       parameters: buildZodSchema(def),
       execute: async (params) => executor(def.name, params as Record<string, unknown>),
     })
   }
-
   return tools
 }
 
 // ============================================================================
-// Convert ToolSchema params → Zod object schema
+// ToolSchema params → Zod object schema
 // ============================================================================
 
 function buildZodSchema(def: ToolSchema) {

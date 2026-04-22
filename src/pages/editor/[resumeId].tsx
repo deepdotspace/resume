@@ -7,7 +7,7 @@
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
-import { ArrowLeft, Play, Download, Save } from 'lucide-react'
+import { ArrowLeft, Play, Download, Save, Sparkles, SquarePen, X } from 'lucide-react'
 import { useEditorSettings, useResumes, useProfiles, useResumeForm, useCompilation, usePanelResize, useLatexGenerator, useLatexOverride, useVersionHistory } from '../../hooks'
 import { useThemeSync } from '../../hooks/useThemeSync'
 import { themeForBackground } from '../../utils/themeForBackground'
@@ -19,6 +19,7 @@ import { ResumeUpload } from '../../components/upload/ResumeUpload'
 import { SectionAccordion, PersonalInfoForm, SummaryForm, ExperienceForm, EducationForm, SkillsForm, LanguagesForm, ProjectsForm, CertificationsForm, CustomSectionsForm } from '../../components/form'
 import { Button, ConfirmModal, useToast } from '../../components/ui'
 import TargetJobPanel from '../../components/shared/TargetJobPanel'
+import { ChatPanel } from '../../components/ai-chat/ChatPanel'
 import { TEMPLATE_METADATA, SECTION_LABELS } from '../../constants'
 import { parsePhotoDataUrl } from '../../utils/compressImage'
 import type { SectionKey } from '../../constants'
@@ -142,11 +143,29 @@ export default function EditorPage() {
   const [uploadUsed, setUploadUsed] = useState(false)
   const [isParsingResume, setIsParsingResume] = useState(false)
 
+  // AI assistant — collapsible right-side panel. Persisted to localStorage so
+  // the last-chosen state survives reloads. `resetRequestSignal` bumps to
+  // open the in-panel "Start a new chat?" confirm — the actual reset happens
+  // only if the user confirms.
+  const [chatOpen, setChatOpen] = useState<boolean>(() => {
+    // Default open — first-time users land with the assistant visible. An
+    // explicit '0' in storage (user closed it before) keeps it closed.
+    try { return localStorage.getItem('resume-ai-chat-open') !== '0' } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('resume-ai-chat-open', chatOpen ? '1' : '0') } catch { /* ignore */ }
+  }, [chatOpen])
+  const [resetRequestSignal, setResetRequestSignal] = useState(0)
+
   const jobDescriptionFromResume = (resume?.data as { jobDescription?: string })?.jobDescription ?? ''
   const [jobDescription, setJobDescription] = useState(jobDescriptionFromResume)
+  // Hydrate the local input only when the resumeId changes. Otherwise a
+  // storage echo from our own debounced write would race our unsaved edits
+  // and clobber them mid-typing.
   useEffect(() => {
     setJobDescription(jobDescriptionFromResume)
-  }, [jobDescriptionFromResume])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeId])
   const jobDescriptionRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleJobDescriptionChange = useCallback(
     (value: string) => {
@@ -230,7 +249,7 @@ export default function EditorPage() {
       : undefined
     const result = await compile(latexSource, extraResources)
     if (result.success && result.pdfBase64) {
-      addVersion({
+      await addVersion({
         pdfBase64: result.pdfBase64,
         latexSource,
         compiler,
@@ -306,7 +325,7 @@ export default function EditorPage() {
         if (canCompile && !isCompiling) handleCompile()
       } else if (mod && e.shiftKey && e.key === 'D') {
         e.preventDefault()
-        if (pdfUrl) handleDownloadPdf()
+        if (displayPdfUrl) handleDownloadPdf()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -404,8 +423,8 @@ export default function EditorPage() {
   const templateMeta = TEMPLATE_METADATA.find(t => t.id === templateId) ?? TEMPLATE_METADATA[0]
 
   return (
-    <div className="h-full flex flex-col p-3">
-      <div className="glass-content-panel flex-1 min-h-0 rounded-2xl overflow-hidden flex flex-col">
+    <div className="h-full flex p-3 gap-3">
+      <div className="glass-content-panel flex-1 min-w-0 min-h-0 rounded-2xl overflow-hidden flex flex-col">
         {/* Toolbar */}
         <div className="editor-toolbar-unified shrink-0">
           <div className="editor-toolbar-scroll">
@@ -477,6 +496,17 @@ export default function EditorPage() {
                 <Download className="w-3.5 h-3.5" />
                 PDF
               </Button>
+              <span className="toolbar-separator" />
+              <button
+                type="button"
+                onClick={() => setChatOpen((v) => !v)}
+                className={`toolbar-btn ${chatOpen ? 'text-primary' : ''}`}
+                title={chatOpen ? 'Close assistant' : 'Open assistant'}
+                aria-label={chatOpen ? 'Close assistant' : 'Open assistant'}
+                aria-pressed={chatOpen}
+              >
+                <Sparkles className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
@@ -661,6 +691,42 @@ export default function EditorPage() {
           </div>
         </div>
       </div>
+
+      {chatOpen && (
+        <aside
+          aria-label="Resume assistant"
+          className="glass-content-panel w-[380px] shrink-0 min-h-0 rounded-2xl overflow-hidden flex flex-col"
+        >
+          <header className="shrink-0 flex items-center justify-between px-3 h-[var(--spacing-toolbar)] border-b border-border">
+            <span className="text-[12px] font-medium text-content tracking-tight truncate">
+              Assistant
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setResetRequestSignal((n) => n + 1)}
+                title="New chat"
+                aria-label="New chat"
+                className="toolbar-btn !w-7 !h-7"
+              >
+                <SquarePen className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatOpen(false)}
+                title="Close assistant"
+                aria-label="Close assistant"
+                className="toolbar-btn !w-7 !h-7"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </header>
+          <div className="flex-1 min-h-0">
+            <ChatPanel resumeId={resumeId} resetRequestSignal={resetRequestSignal} />
+          </div>
+        </aside>
+      )}
 
       {/* Enter override */}
       <ConfirmModal

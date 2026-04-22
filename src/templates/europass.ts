@@ -9,7 +9,7 @@
  */
 
 import type { ResumeFormData, LanguageEntry, CefrSkills } from './types'
-import { escapeLatex, getEmbeddedPhotoPath } from './latexEscape'
+import { escapeLatex, escapeLatexUrl, getEmbeddedPhotoPath } from './latexEscape'
 
 /** EU blue used in official Europass (RGB 0, 51, 153) */
 const EU_BLUE = '0,51,153'
@@ -42,7 +42,10 @@ function parseBooleanLike(value: unknown): boolean | null {
 }
 
 function isMotherTongueLanguage(lang: LanguageEntry): boolean {
-  const raw = lang as Record<string, unknown>
+  // `LanguageEntry` has a narrow shape but this function also checks legacy
+  // key names that aren't on the type. Go through `unknown` so TS doesn't
+  // complain about the mismatch — legacy keys are intentional back-compat.
+  const raw = lang as unknown as Record<string, unknown>
 
   // Primary flag from current form model.
   const explicit = parseBooleanLike(raw.isMotherTongue)
@@ -89,14 +92,14 @@ export function generateLatex(data: ResumeFormData): string {
   const photoPath = getEmbeddedPhotoPath(p?.photo)
 
   const contactRows: string[] = []
-  if (email) contactRows.push(`\\textbf{Email} & \\href{mailto:${escapeLatex(email)}}{${escapeLatex(email)}} \\\\`)
+  if (email) contactRows.push(`\\textbf{Email} & \\href{mailto:${escapeLatexUrl(email)}}{${escapeLatex(email)}} \\\\`)
   if (phone) contactRows.push(`\\textbf{Phone} & ${phone} \\\\`)
   if (location) contactRows.push(`\\textbf{Address} & ${location} \\\\`)
   if (nationality) contactRows.push(`\\textbf{Nationality} & ${escapeLatex(nationality)} \\\\`)
   if (dateOfBirth) contactRows.push(`\\textbf{Date of birth} & ${escapeLatex(dateOfBirth)} \\\\`)
   if (drivingLicense) contactRows.push(`\\textbf{Driving licence} & ${escapeLatex(drivingLicense)} \\\\`)
-  if (website) contactRows.push(`\\textbf{Website} & \\href{${escapeLatex(website)}}{${escapeLatex(website)}} \\\\`)
-  if (linkedin) contactRows.push(`\\textbf{LinkedIn} & \\href{${escapeLatex(linkedin)}}{${escapeLatex(linkedin)}} \\\\`)
+  if (website) contactRows.push(`\\textbf{Website} & \\href{${escapeLatexUrl(website)}}{${escapeLatex(website)}} \\\\`)
+  if (linkedin) contactRows.push(`\\textbf{LinkedIn} & \\href{${escapeLatexUrl(linkedin)}}{${escapeLatex(linkedin)}} \\\\`)
   const contactTable = contactRows.length
     ? `\\begin{tabular}{@{}ll}\n${contactRows.join('\n')}\n\\end{tabular}`
     : ''
@@ -228,7 +231,7 @@ ${contactTable}`
       for (const proj of data.projects) {
         if (!proj.name && !proj.description) continue
         addContent += `\\textbf{${escapeLatex(proj.name || 'Project')}}`
-        if (proj.url?.trim()) addContent += ` -- \\href{${escapeLatex(proj.url)}}{Link}`
+        if (proj.url?.trim()) addContent += ` -- \\href{${escapeLatexUrl(proj.url)}}{Link}`
         addContent += '\n\\\\\n'
         if (proj.description?.trim()) addContent += `${escapeLatex(proj.description)}\n`
         if (proj.bullets?.length) {

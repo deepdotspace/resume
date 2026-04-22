@@ -43,10 +43,10 @@ export function usePanelResize() {
 
     const ratio = Math.max(EDITOR_RATIO_MIN, Math.min(EDITOR_RATIO_MAX, relativeX / availableWidth))
 
-    setEditorRatio(prev => {
-      saveRatio(ratio)
-      return ratio
-    })
+    // Side-effect (localStorage write) outside the setState updater so it
+    // isn't called twice under React strict mode's double-invoke.
+    setEditorRatio(ratio)
+    saveRatio(ratio)
   }, [])
 
   return {

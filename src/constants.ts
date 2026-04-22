@@ -1,8 +1,17 @@
 /** App name — replaced by the CLI during scaffolding */
 export const APP_NAME = 'resume-builder'
 
-/** Primary scope ID for the app's RecordRoom DO */
-export const SCOPE_ID = `app:${APP_NAME}`
+/**
+ * Build the RecordRoom scope id for this app. Derived from the env-provided
+ * `APP_NAME` at runtime on the server side; client side the env matches the
+ * compile-time constant. Use this helper instead of string-concatenating.
+ */
+export function makeScopeId(appName: string): string {
+  return `app:${appName}`
+}
+
+/** Primary scope ID for the app's RecordRoom DO (client side). */
+export const SCOPE_ID = makeScopeId(APP_NAME)
 
 /** Roles and display config — imported from SDK (single source of truth) */
 export { ROLES, ROLE_CONFIG, type Role } from 'deepspace'

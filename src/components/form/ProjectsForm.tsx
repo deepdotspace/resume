@@ -301,7 +301,10 @@ User refinement instructions: ${regenerationInstructions.trim() || '(none — tr
               const hasSuggestion = hasSuggestionForBullet(i, j)
               const suggestionText = getSuggestionForBullet(i, j)
               const fromTailor = isTailorSuggestion(i, j)
-              const canImprove = !readOnly && !!b.trim() && !loadingKey && !loadingEntryIndex && !suggestion && !Object.keys(tailorSuggestions).length
+              // Per-bullet gate: disable only when THIS bullet has an
+              // active tailor suggestion or an in-flight improve — not
+              // globally across all bullets in all entries.
+              const canImprove = !readOnly && !!b.trim() && !loadingKey && !loadingEntryIndex && !suggestion && !hasSuggestion
 
               return (
                 <div key={j} className="mb-2 group">

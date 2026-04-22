@@ -21,11 +21,13 @@ import { cn } from './utils'
 // Modal - Accessible modal dialog (wraps Radix Dialog)
 // ============================================================================
 
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
+
 interface ModalProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   open: boolean
   onClose: () => void
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: ModalSize
 }
 
 export function Modal({
@@ -149,8 +151,16 @@ interface ConfirmModalProps {
   description?: string
   confirmText?: string
   cancelText?: string
-  variant?: 'destructive' | 'default'
+  /**
+   * Confirm-button style. `destructive`/`danger` render red (delete/discard
+   * flows); `default`/`primary` render the app's primary colour (affirmative
+   * flows like "Switch to LaTeX editing"). `danger` and `primary` are
+   * semantic aliases mapped through Button's variant table.
+   */
+  variant?: 'destructive' | 'default' | 'danger' | 'primary'
   loading?: boolean
+  /** Optional size override for the underlying Modal. */
+  size?: ModalSize
 }
 
 export function ConfirmModal({
@@ -163,9 +173,10 @@ export function ConfirmModal({
   cancelText = 'Cancel',
   variant = 'destructive',
   loading = false,
+  size = 'sm',
 }: ConfirmModalProps): JSX.Element {
   return (
-    <Modal open={open} onClose={onClose} size="sm">
+    <Modal open={open} onClose={onClose} size={size}>
       <Modal.Header>
         <Modal.Title>{title}</Modal.Title>
         {description && <Modal.Description>{description}</Modal.Description>}

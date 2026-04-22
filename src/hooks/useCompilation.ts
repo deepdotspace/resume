@@ -4,7 +4,7 @@
  * Simplified for resume builder: single .tex content, no bibliography, no log persistence.
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { integration } from 'deepspace'
 import type {
   CompilationResult,
@@ -56,10 +56,14 @@ function buildCompilationLog(data: Record<string, unknown>): CompilationLog {
     }
   }
 
-  const errors = ((parsed.errors as unknown[]) || []).map(mapApiLogItem)
-  const warnings = ((parsed.warnings as unknown[]) || []).map(mapApiLogItem)
-  const badboxes = ((parsed.badboxes as unknown[]) || []).map(mapApiLogItem)
-  const missingRefs = ((parsed.missing_refs as unknown[]) || []).map(mapApiLogItem)
+  // The compiler API returns log entries as `{info, context}` objects. The
+  // response is loosely typed (unknown) at the boundary; narrow here so the
+  // mapper receives the shape it expects.
+  type ApiLogItem = { info?: Record<string, unknown>; context?: string }
+  const errors = ((parsed.errors as ApiLogItem[]) || []).map(mapApiLogItem)
+  const warnings = ((parsed.warnings as ApiLogItem[]) || []).map(mapApiLogItem)
+  const badboxes = ((parsed.badboxes as ApiLogItem[]) || []).map(mapApiLogItem)
+  const missingRefs = ((parsed.missing_refs as ApiLogItem[]) || []).map(mapApiLogItem)
 
   return {
     compiled: !!(data.compiled),
@@ -108,6 +112,17 @@ export function useCompilation({ compiler }: UseCompilationOptions): UseCompilat
   const [lastCompiledAt, setLastCompiledAt] = useState<number | null>(null)
 
   const prevBlobUrlRef = useRef<string | null>(null)
+
+  // Revoke the last blob URL on unmount — otherwise the final compile's
+  // blob leaks memory for the lifetime of the tab.
+  useEffect(() => {
+    return () => {
+      if (prevBlobUrlRef.current) {
+        URL.revokeObjectURL(prevBlobUrlRef.current)
+        prevBlobUrlRef.current = null
+      }
+    }
+  }, [])
 
   const compile = useCallback(async (latexSource: string, extraResources?: ExtraResource[]): Promise<CompilationResult> => {
     setStatus('compiling')

@@ -1,8 +1,13 @@
 /**
  * SkillsForm — repeatable skill groups (category + items).
+ *
+ * The "Skills" input holds a comma-separated string while the user is
+ * typing, so the caret doesn't jump when the user types a comma. On blur
+ * (or when the user adds a suggested skill) the string is parsed into the
+ * `SkillGroup.items` array and pushed up.
  */
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { Input, Button } from '../ui'
 import { Plus, Trash2, Target } from 'lucide-react'
 import { useTailorSection } from '../../hooks'
@@ -17,10 +22,34 @@ interface SkillsFormProps {
 
 const emptyGroup: SkillGroup = { category: '', items: [''] }
 
+function itemsToString(items: string[] | undefined): string {
+  return (items || []).filter(Boolean).join(', ')
+}
+
+function parseItems(str: string): string[] {
+  const items = str.split(',').map(s => s.trim()).filter(Boolean)
+  return items.length === 0 ? [''] : items
+}
+
 export function SkillsForm({ value, onChange, jobDescription, readOnly }: SkillsFormProps) {
   const groups = value?.length ? value : [emptyGroup]
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([])
   const { suggestSkillsFromJd, loading, error, clearError } = useTailorSection()
+
+  // Per-group raw input strings. Seed from the upstream `value`; only push
+  // parsed arrays back on blur so the caret doesn't jump while typing.
+  const [rawItems, setRawItems] = useState<string[]>(() => groups.map(g => itemsToString(g.items)))
+
+  // Sync down: if the upstream value changes (e.g. agent edit, or group
+  // count changes), reseed the raw strings. Compare by formatted strings
+  // so we only reseed when the underlying data actually changed.
+  useEffect(() => {
+    const nextRaw = groups.map(g => itemsToString(g.items))
+    setRawItems(prev => {
+      if (prev.length === nextRaw.length && prev.every((s, i) => s === nextRaw[i])) return prev
+      return nextRaw
+    })
+  }, [groups])
 
   const update = (index: number, patch: Partial<SkillGroup>) => {
     const next = [...groups]
@@ -28,17 +57,17 @@ export function SkillsForm({ value, onChange, jobDescription, readOnly }: Skills
     onChange(next)
   }
 
-  const updateItems = (index: number, itemsStr: string) => {
-    const items = itemsStr.split(',').map(s => s.trim()).filter(Boolean)
-    if (items.length === 0) items.push('')
-    update(index, { items })
+  const addGroup = () => {
+    const next = [...groups, { ...emptyGroup }]
+    onChange(next)
+    setRawItems(next.map(g => itemsToString(g.items)))
   }
-
-  const addGroup = () => onChange([...groups, { ...emptyGroup }])
 
   const removeGroup = (index: number) => {
     if (groups.length <= 1) return
-    onChange(groups.filter((_, i) => i !== index))
+    const next = groups.filter((_, i) => i !== index)
+    onChange(next)
+    setRawItems(next.map(g => itemsToString(g.items)))
   }
 
   const handleSuggestFromJd = useCallback(async () => {
@@ -60,10 +89,31 @@ export function SkillsForm({ value, onChange, jobDescription, readOnly }: Skills
         next.push({ category: 'Skills', items: [skill] })
       }
       onChange(next)
+      // Keep the raw string aligned with the parsed array we just wrote.
+      setRawItems(next.map(g => itemsToString(g.items)))
       setSuggestedSkills(prev => prev.filter(s => s !== skill))
     },
-    [groups, onChange]
+    [groups, onChange],
   )
+
+  const handleRawChange = (index: number, str: string) => {
+    setRawItems(prev => {
+      const next = [...prev]
+      next[index] = str
+      return next
+    })
+  }
+
+  const commitRaw = (index: number) => {
+    const parsed = parseItems(rawItems[index] ?? '')
+    update(index, { items: parsed })
+    // Normalise local raw string so trailing commas / whitespace collapse.
+    setRawItems(prev => {
+      const next = [...prev]
+      next[index] = itemsToString(parsed)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -124,8 +174,9 @@ export function SkillsForm({ value, onChange, jobDescription, readOnly }: Skills
           />
           <Input
             label="Skills (comma-separated)"
-            value={(group.items || []).filter(Boolean).join(', ')}
-            onChange={e => updateItems(i, e.target.value)}
+            value={rawItems[i] ?? ''}
+            onChange={e => handleRawChange(i, e.target.value)}
+            onBlur={() => commitRaw(i)}
             placeholder="JavaScript, TypeScript, React"
             readOnly={readOnly}
           />

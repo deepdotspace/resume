@@ -1,5 +1,16 @@
 /**
- * useResumeForm — load resume by ID, parse JSON fields, provide form state + persisted updates.
+ * useResumeForm — load a resume by ID, parse JSON fields into form state, and
+ * provide debounced persistence that writes back to the record.
+ *
+ * Persist contract:
+ *   - `persist` always writes to `resumeIdRef.current`, NOT a closure value, so
+ *     the cleanup/unmount flush never writes to a stale id even if a user
+ *     switched resumes while a debounce was still pending.
+ *   - On resume switch we drain any pending write to the OLD id first, then
+ *     hydrate form state from the NEW record.
+ *   - We re-sync from storage only when the record's `updatedAt` bumps past
+ *     our last-synced mark AND there's nothing pending locally — so external
+ *     writes (e.g. the AI agent) show up without clobbering unsaved edits.
  */
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
@@ -53,44 +64,25 @@ export function useResumeForm(resumeId: string | null) {
     return resumes.find(r => r.recordId === resumeId) ?? null
   }, [resumes, resumeId, isReady])
 
-  const initialFormData = resumeToFormData(resume)
-  const [formData, setFormData] = useState<ResumeFormData | null>(initialFormData)
+  const [formData, setFormData] = useState<ResumeFormData | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRef = useRef<ResumeFormData | null>(null)
   const prevRecordIdRef = useRef<string | null>(null)
   const lastSyncedAt = useRef<number>(0)
 
+  // The live resumeId is held in a ref so `persist` and cleanup effects
+  // never capture a stale closure. When the user switches resumes mid-
+  // debounce, the flush below drains pending writes against the id that
+  // was active when the write was queued.
+  const persistIdRef = useRef<string | null>(null)
+
   const storageTimestamp = resume?.data.updatedAt ?? 0
 
-  useEffect(() => {
-    const rid = resume?.recordId ?? null
-    const isNewResume = prevRecordIdRef.current !== rid
-
-    if (isNewResume) {
-      prevRecordIdRef.current = rid
-      lastSyncedAt.current = storageTimestamp
-      setFormData(resumeToFormData(resume))
-      return
-    }
-
-    // Re-sync from storage when an external source (e.g. agent via `call`) updates the record,
-    // but only if the user has no local edits in flight.
-    // Use > to ignore echoes from our own writes (persist sets lastSyncedAt to Date.now()
-    // which is >= the timestamp updateResume stamps on the record).
-    if (
-      storageTimestamp > lastSyncedAt.current &&
-      !pendingRef.current &&
-      !debounceRef.current
-    ) {
-      lastSyncedAt.current = storageTimestamp
-      setFormData(resumeToFormData(resume))
-    }
-  }, [resume, storageTimestamp])
-
-  const persist = useCallback((data: ResumeFormData) => {
-    if (!resumeId) return
-    updateResume(resumeId, {
+  // persist(data, id) — writes against the id we were editing when the
+  // debounce fired, not the current one. `updateResume` is stable.
+  const persist = useCallback((data: ResumeFormData, id: string) => {
+    updateResume(id, {
       personalInfo: JSON.stringify(data.personalInfo),
       summary: data.summary,
       experience: JSON.stringify(data.experience),
@@ -101,12 +93,47 @@ export function useResumeForm(resumeId: string | null) {
       projects: JSON.stringify(data.projects),
       customSections: JSON.stringify(data.customSections),
     })
-    // Mark that we just wrote — the storage echo will carry a timestamp >= this value,
-    // so bump lastSyncedAt high enough to suppress the redundant re-sync
     lastSyncedAt.current = Date.now()
     pendingRef.current = null
     debounceRef.current = null
-  }, [resumeId, updateResume])
+  }, [updateResume])
+
+  const flushPending = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    if (pendingRef.current && persistIdRef.current) {
+      persist(pendingRef.current, persistIdRef.current)
+    }
+  }, [persist])
+
+  // Hydrate / re-sync from the record. On id change, flush pending writes
+  // to the OLD id first, THEN swap state.
+  useEffect(() => {
+    const rid = resume?.recordId ?? null
+    const isNewResume = prevRecordIdRef.current !== rid
+
+    if (isNewResume) {
+      flushPending()
+      prevRecordIdRef.current = rid
+      persistIdRef.current = rid
+      lastSyncedAt.current = storageTimestamp
+      setFormData(resumeToFormData(resume))
+      return
+    }
+
+    // Re-sync from storage when an external writer (e.g. the AI agent)
+    // bumps `updatedAt`. Guard against clobbering unsaved edits.
+    if (
+      storageTimestamp > lastSyncedAt.current &&
+      !pendingRef.current &&
+      !debounceRef.current
+    ) {
+      lastSyncedAt.current = storageTimestamp
+      setFormData(resumeToFormData(resume))
+    }
+  }, [resume, storageTimestamp, flushPending])
 
   const updateField = useCallback(<K extends keyof ResumeFormData>(
     key: K,
@@ -116,27 +143,37 @@ export function useResumeForm(resumeId: string | null) {
       if (!prev) return prev
       const next = { ...prev, [key]: value }
       pendingRef.current = next
+      const scheduledFor = persistIdRef.current
 
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => {
-        if (pendingRef.current) persist(pendingRef.current)
+        if (pendingRef.current && scheduledFor) persist(pendingRef.current, scheduledFor)
       }, 500)
 
       return next
     })
   }, [persist])
 
-  // Cleanup debounce on unmount
+  // Unmount flush — mount-only effect so it doesn't re-register on every
+  // `persist` identity change. Reads refs, which always carry the live state.
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (pendingRef.current) persist(pendingRef.current)
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+      if (pendingRef.current && persistIdRef.current) {
+        persist(pendingRef.current, persistIdRef.current)
+      }
     }
-  }, [persist])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const sectionOrder = useMemo((): SectionKey[] => {
     if (!resume?.data.sectionOrder) return DEFAULT_SECTION_ORDER
-    const stored = safeJson<SectionKey[]>(resume.data.sectionOrder, DEFAULT_SECTION_ORDER)
+    // Clone — `safeJson` can return the shared `DEFAULT_SECTION_ORDER`
+    // fallback, and pushing into that would corrupt the module constant.
+    const stored = [...safeJson<SectionKey[]>(resume.data.sectionOrder, DEFAULT_SECTION_ORDER)]
     for (const key of DEFAULT_SECTION_ORDER) {
       if (!stored.includes(key)) stored.push(key)
     }

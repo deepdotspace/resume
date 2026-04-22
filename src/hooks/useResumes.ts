@@ -3,7 +3,7 @@
  */
 
 import { useMemo, useCallback } from 'react'
-import { useQuery, useMutations, useUser } from 'deepspace'
+import { useQuery, useMutations, useUser, getAuthToken } from 'deepspace'
 import type { ProfileData } from './useProfiles'
 
 export interface ResumeData {
@@ -37,7 +37,7 @@ export interface Resume {
 export function useResumes() {
   const { user } = useUser()
   const { records, status } = useQuery('resumes')
-  const { createConfirmed, put, remove } = useMutations('resumes')
+  const { createConfirmed, put } = useMutations('resumes')
 
   const resumes = useMemo<Resume[]>(() => {
     if (!user || status !== 'ready') return []
@@ -78,11 +78,9 @@ export function useResumes() {
         createdAt: now,
         updatedAt: now,
       }
-      try {
-        return await createConfirmed(record)
-      } catch {
-        return null
-      }
+      // Let the error propagate. Callers (home page) decide how to surface
+      // failures — swallowing hid "rbac denied" vs "offline" vs "auth lost".
+      return await createConfirmed(record)
     },
     [createConfirmed],
   )
@@ -94,12 +92,26 @@ export function useResumes() {
     [put],
   )
 
-  const deleteResume = useCallback(
-    (id: string) => {
-      remove(id)
-    },
-    [remove],
-  )
+  /**
+   * Delete a resume and cascade to its version history via the server action.
+   * Running server-side means a tab close mid-cascade still finishes,
+   * avoiding orphaned `resume-versions` rows.
+   */
+  const deleteResume = useCallback(async (id: string): Promise<void> => {
+    const token = await getAuthToken()
+    const res = await fetch('/api/actions/deleteResume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ resumeId: id }),
+    })
+    const result = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string }
+    if (!result.success) {
+      throw new Error(result.error || `Failed to delete resume (status ${res.status})`)
+    }
+  }, [])
 
   return {
     resumes,

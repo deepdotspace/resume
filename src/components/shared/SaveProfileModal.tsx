@@ -14,8 +14,9 @@ interface SaveProfileModalProps {
   onClose: () => void
   formData: ResumeFormData
   sourceProfile: Profile | null
-  onUpdateProfile: (profileId: string, formData: ResumeFormData) => void
-  onCreateProfile: (title: string, formData: ResumeFormData) => void
+  onUpdateProfile: (profileId: string, formData: ResumeFormData) => void | Promise<void>
+  onCreateProfile: (title: string, formData: ResumeFormData) => void | Promise<void>
+
 }
 
 export default function SaveProfileModal({
@@ -41,25 +42,32 @@ export default function SaveProfileModal({
     onClose()
   }, [onClose, reset])
 
-  const handleUpdate = useCallback(() => {
-    if (!sourceProfile) return
+  const handleUpdate = useCallback(async () => {
+    if (!sourceProfile || saving) return
     setSaving(true)
-    onUpdateProfile(sourceProfile.recordId, formData)
-    setTimeout(() => {
-      setSaving(false)
+    try {
+      await onUpdateProfile(sourceProfile.recordId, formData)
       handleClose()
-    }, 300)
-  }, [sourceProfile, formData, onUpdateProfile, handleClose])
+    } catch (err) {
+      console.error('[SaveProfileModal] update failed:', err)
+    } finally {
+      setSaving(false)
+    }
+  }, [sourceProfile, formData, onUpdateProfile, handleClose, saving])
 
-  const handleCreateNew = useCallback(() => {
+  const handleCreateNew = useCallback(async () => {
+    if (saving) return
     const title = newTitle.trim() || `${formData.personalInfo?.name || 'Untitled'} Profile`
     setSaving(true)
-    onCreateProfile(title, formData)
-    setTimeout(() => {
-      setSaving(false)
+    try {
+      await onCreateProfile(title, formData)
       handleClose()
-    }, 300)
-  }, [newTitle, formData, onCreateProfile, handleClose])
+    } catch (err) {
+      console.error('[SaveProfileModal] create failed:', err)
+    } finally {
+      setSaving(false)
+    }
+  }, [newTitle, formData, onCreateProfile, handleClose, saving])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && mode === 'new' && !saving) {

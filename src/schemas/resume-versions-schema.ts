@@ -14,6 +14,6 @@ export const resumeVersionsSchema: CollectionSchema = {
   permissions: {
     admin: { read: true, create: true, update: true, delete: true },
     member: { read: 'own', create: true, update: false, delete: 'own' },
-    viewer: { read: 'own', create: true, update: false, delete: false },
+    viewer: { read: 'own', create: false, update: false, delete: false },
   },
 }
