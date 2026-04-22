@@ -15,6 +15,11 @@ import { DEFAULT_SETTINGS } from '../constants'
 import type { Compiler } from '../constants'
 import { THEME_STORAGE_KEY } from './useThemeSync'
 
+// Mirrors the user's chosen background image across reloads so the shell
+// shows the same visual state on next load instead of flashing the
+// DEFAULT_SETTINGS background before the server query resolves.
+const BACKGROUND_STORAGE_KEY = 'resume-background-id'
+
 export interface EditorSettings {
   theme: 'light' | 'dark'
   defaultTemplate: string
@@ -39,27 +44,33 @@ function normalizeSettings(data?: Partial<EditorSettings>): EditorSettings {
 }
 
 /**
- * Synchronously read the user's cached theme — the same value written by
- * `useThemeSync` and restored by the pre-boot script in `index.html`.
- * Used to seed the initial `backgroundId` so AppShell's first render
- * doesn't compute the wrong theme from DEFAULT_SETTINGS (which pins
- * `backgroundId` to a dark image) while the server record is still in
- * flight.
+ * Synchronously read the user's cached theme + background choice — the
+ * same values written by `useThemeSync` and the mirror effect below, and
+ * restored by the pre-boot script in `index.html`. Used to seed the
+ * initial settings so AppShell's first render computes the correct
+ * theme AND renders the user's chosen background image instead of the
+ * DEFAULT_SETTINGS image, eliminating the pre-sync visual flash.
  */
 function seedInitialSettings(): EditorSettings {
   let cachedTheme: 'light' | 'dark' | null = null
+  let cachedBg: string | null = null
   try {
     const t = localStorage.getItem(THEME_STORAGE_KEY)
     if (t === 'light' || t === 'dark') cachedTheme = t
+    const b = localStorage.getItem(BACKGROUND_STORAGE_KEY)
+    if (b) cachedBg = b
   } catch { /* ignore */ }
 
-  // If the last session was light-themed, the app used the `'light'`
-  // background. Seed that so `themeForBackground(backgroundId)` in
-  // AppShell produces `light` on the very first render.
-  if (cachedTheme === 'light') {
-    return normalizeSettings({ backgroundId: 'light' })
+  const patch: Partial<EditorSettings> = {}
+  if (cachedTheme) patch.theme = cachedTheme
+  if (cachedBg) {
+    patch.backgroundId = cachedBg
+  } else if (cachedTheme === 'light') {
+    // Cached theme without a specific bg — the `'light'` background is
+    // the canonical light-mode choice.
+    patch.backgroundId = 'light'
   }
-  return normalizeSettings()
+  return normalizeSettings(patch)
 }
 
 function areSettingsEqual(a: EditorSettings, b: EditorSettings): boolean {
@@ -128,6 +139,15 @@ export function useEditorSettings() {
     const next = normalizeSettings(ownRecord.data as Partial<EditorSettings>)
     setLocalSettings(prev => (areSettingsEqual(prev, next) ? prev : next))
   }, [ownRecord])
+
+  // Mirror the backgroundId to localStorage so the next reload can seed
+  // the same image pre-query (eliminates the flash of DEFAULT_SETTINGS
+  // background between mount and record sync).
+  useEffect(() => {
+    try {
+      localStorage.setItem(BACKGROUND_STORAGE_KEY, localSettings.backgroundId)
+    } catch { /* ignore */ }
+  }, [localSettings.backgroundId])
 
   const updateSetting = useCallback(
     <K extends keyof EditorSettings>(key: K, value: EditorSettings[K]) => {
