@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Resume">
+  <defs>
+    <!-- Indigo → sky gradient matches the OG image accent and the in-app wordmark dot. -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1220" />
+      <stop offset="100%" stop-color="#1a1f33" />
+    </linearGradient>
+    <linearGradient id="r" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc" />
+      <stop offset="100%" stop-color="#67e8f9" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded square plate. 12px radius reads as 18% rounding at 64px, matching modern iOS/Android tile rounding. -->
+  <rect width="64" height="64" rx="12" fill="url(#bg)" />
+  <!-- Serif "R" sized to fill the plate. Playfair Display matches the in-app wordmark and OG card. -->
+  <text
+    x="50%"
+    y="50%"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="'Playfair Display', 'Times New Roman', Georgia, serif"
+    font-weight="700"
+    font-size="46"
+    fill="url(#r)"
+  >R</text>
+</svg>
