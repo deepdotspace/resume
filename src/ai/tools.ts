@@ -32,7 +32,8 @@ export function buildChatTools(executor: ToolExecutor): Record<string, Tool> {
     const safeName = def.name.replaceAll('.', '_')
     tools[safeName] = tool({
       description: def.description,
-      parameters: buildZodSchema(def),
+      // AI SDK v5: `parameters` was renamed to `inputSchema`.
+      inputSchema: buildZodSchema(def),
       execute: async (params) => executor(def.name, params as Record<string, unknown>),
     })
   }

@@ -47,6 +47,10 @@ export interface ContextLoaderEnv {
  * Invoke the RecordRoom DO's tool-execute endpoint under the caller's userId
  * so RBAC is enforced. Mirrors the chat tool executor — same transport, same
  * auth model, same bug surface.
+ *
+ * SDK 0.3.x contract: caller userId goes in the `X-User-Id` HEADER. Passing
+ * it in the body (the 0.2.x contract) makes the DO treat the call as
+ * anonymous and silently return zero records.
  */
 async function callTool(
   env: ContextLoaderEnv,
@@ -58,8 +62,11 @@ async function callTool(
   const stub = env.RECORD_ROOMS.get(doId)
   const res = await stub.fetch(new Request('https://internal/api/tools/execute', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tool, params, userId }),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId,
+    },
+    body: JSON.stringify({ tool, params }),
   }))
   return res.json() as Promise<{ success: boolean; data?: unknown; error?: string }>
 }

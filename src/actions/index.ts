@@ -1,5 +1,4 @@
 import type { ActionHandler } from 'deepspace/worker'
-import { APP_NAME, makeScopeId } from '../constants'
 
 /**
  * deleteResume — cascading delete for a resume and its version history.
@@ -17,18 +16,20 @@ const deleteResume: ActionHandler = async ({ params, tools }) => {
   if (typeof resumeId !== 'string' || !resumeId) {
     return { success: false, error: 'resumeId is required' }
   }
-  const scopeId = makeScopeId(APP_NAME)
 
   const cascadeCollections = ['resume-versions'] as const
 
   for (const collection of cascadeCollections) {
-    const result = await tools.query(scopeId, collection, { where: { resumeId }, limit: 500 })
+    const result = await tools.query<{ resumeId: string }>(collection, {
+      where: { resumeId },
+      limit: 500,
+    })
     if (!result.success) {
       return { success: false, error: `Failed to query ${collection}: ${result.error ?? 'unknown'}` }
     }
-    const records = (result.data as { records?: Array<{ recordId: string }> } | undefined)?.records ?? []
+    const records = result.data?.records ?? []
     for (const record of records) {
-      const removal = await tools.remove(scopeId, collection, record.recordId)
+      const removal = await tools.remove(collection, record.recordId)
       if (!removal.success) {
         return {
           success: false,
@@ -38,12 +39,12 @@ const deleteResume: ActionHandler = async ({ params, tools }) => {
     }
   }
 
-  const resumeRemoval = await tools.remove(scopeId, 'resumes', resumeId)
+  const resumeRemoval = await tools.remove('resumes', resumeId)
   if (!resumeRemoval.success) {
     return { success: false, error: `Failed to remove resume: ${resumeRemoval.error ?? 'unknown'}` }
   }
 
-  return { success: true }
+  return { success: true, data: undefined }
 }
 
 export const actions: Record<string, ActionHandler> = {

@@ -13,18 +13,19 @@ run_worker_first = ["/api/*", "/ws/*", "/internal/*"]
 tag = "v1"
 new_sqlite_classes = ["RecordRoom", "YjsRoom", "CanvasRoom", "MediaRoom", "PresenceRoom"]
 
+# v2 removes MediaRoom — it was never used by this app and the SDK no longer
+# ships a MediaRoom base class as of 0.3.x.
+[[migrations]]
+tag = "v2"
+deleted_classes = ["MediaRoom"]
+
 [durable_objects]
 bindings = [
   { name = "RECORD_ROOMS", class_name = "RecordRoom" },
   { name = "YJS_ROOMS", class_name = "YjsRoom" },
   { name = "CANVAS_ROOMS", class_name = "CanvasRoom" },
-  { name = "MEDIA_ROOMS", class_name = "MediaRoom" },
   { name = "PRESENCE_ROOMS", class_name = "PresenceRoom" },
 ]
-
-[[r2_buckets]]
-binding = "FILES"
-bucket_name = "resume-builder-files"
 
 [vars]
 APP_NAME = "resume-builder"
@@ -38,4 +39,3 @@ inspector_port = 9237
 #   AUTH_JWT_ISSUER
 #   AUTH_WORKER_URL
 #   OWNER_USER_ID
-#   INTERNAL_STORAGE_HMAC_SECRET

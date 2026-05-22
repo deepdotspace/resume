@@ -7,13 +7,6 @@
  * on the streaming turn the whole time so there's never a "frozen bubble"
  * perception between tool calls.
  *
- * Behavioral contract:
- *   useChat({
- *     api: '/api/ai/chat',
- *     body: { activeResumeId, modelId },
- *     fetch: <bearer-wrapper>,
- *   })
- *
  * Messages reset on resumeId change via React key remount — no racy ref
  * swaps, no stale state across resumes. localStorage persists the
  * transcript per resume, debounced to coalesce bursty streaming writes.
@@ -21,12 +14,18 @@
 
 import { useState, useRef, useEffect, useMemo, type FormEvent, type KeyboardEvent } from 'react'
 import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAuth, AuthOverlay, getAuthToken } from 'deepspace'
 import { ArrowUp, AlertCircle, RefreshCw, Check, ChevronDown, Square } from 'lucide-react'
-import type { Message } from '@ai-sdk/ui-utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CHAT_MODELS, DEFAULT_MODEL_ID, type ChatModelProvider } from '../../ai/models'
+
+// AI SDK v5 message + part shapes. UIMessage's `parts` are a discriminated
+// union — tool parts use `tool-<name>` type strings (e.g. `tool-records_query`)
+// instead of v4's catch-all `tool-invocation`.
+type ChatMessage = UIMessage
+type ChatPart = ChatMessage['parts'][number]
 
 // ============================================================================
 // localStorage keys
@@ -43,17 +42,17 @@ function loadModelId(): string {
   return DEFAULT_MODEL_ID
 }
 
-function isPersistedMessage(m: unknown): m is Message {
+function isPersistedMessage(m: unknown): m is ChatMessage {
   if (!m || typeof m !== 'object') return false
   const obj = m as Record<string, unknown>
   return (
     typeof obj.id === 'string' &&
     typeof obj.role === 'string' &&
-    (typeof obj.content === 'string' || obj.content === undefined)
+    Array.isArray(obj.parts)
   )
 }
 
-function loadPersistedMessages(resumeId: string): Message[] {
+function loadPersistedMessages(resumeId: string): ChatMessage[] {
   try {
     const raw = localStorage.getItem(MESSAGES_KEY_PREFIX + resumeId)
     if (!raw) return []
@@ -147,29 +146,44 @@ function Chat({
   // in its parent, a new mount always reads fresh storage.
   const initialMessages = useMemo(() => loadPersistedMessages(resumeId), [resumeId])
 
-  const {
-    messages,
-    setMessages,
-    input,
-    setInput,
-    handleInputChange,
-    handleSubmit,
-    isLoading,
-    error,
-    reload,
-    stop,
-  } = useChat({
-    api: '/api/ai/chat',
-    initialMessages,
-    body: { activeResumeId: resumeId, modelId },
-    fetch: async (url, init) => {
-      const token = await getAuthToken()
-      if (init?.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-      const headers = new Headers(init?.headers)
-      if (token) headers.set('Authorization', `Bearer ${token}`)
-      return fetch(url, { ...init, headers })
-    },
-  })
+  // Composer input state — v5 useChat no longer manages input internally;
+  // the app owns the textarea state and calls `sendMessage` on submit.
+  const [input, setInput] = useState('')
+
+  // Keep the latest activeResumeId + modelId visible to the transport's
+  // `body` callback. We can't recreate the transport on each render (would
+  // tear down the streaming connection) so we read the live values via ref.
+  const bodyRef = useRef({ activeResumeId: resumeId, modelId })
+  bodyRef.current = { activeResumeId: resumeId, modelId }
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport<ChatMessage>({
+        api: '/api/ai/chat',
+        // v5: every send invokes `fetch` here; we attach the bearer + the
+        // current activeResumeId / modelId via the body callback.
+        fetch: async (url, init) => {
+          const token = await getAuthToken()
+          if (init?.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+          const headers = new Headers(init?.headers)
+          if (token) headers.set('Authorization', `Bearer ${token}`)
+          return fetch(url as string, { ...init, headers })
+        },
+        body: () => ({ ...bodyRef.current }),
+      }),
+    // The transport itself doesn't change per render — body reads from a ref
+    // so the latest values are picked up at send time without reinitializing.
+    [],
+  )
+
+  const { messages, sendMessage, setMessages, status, error, regenerate, stop } =
+    useChat<ChatMessage>({
+      messages: initialMessages,
+      transport,
+    })
+
+  // v5 status → boolean for legacy spinner code paths.
+  const isLoading = status === 'streaming' || status === 'submitted'
 
   // Reset-request watcher — bump from the parent opens the in-panel confirm
   // banner. Skip the prompt entirely (and just focus the input) when there's
@@ -259,13 +273,27 @@ function Chat({
     return () => cancelAnimationFrame(raf)
   }, [input])
 
+  function submitInput() {
+    const text = input.trim()
+    if (!text || isLoading) return
+    sendMessage({ text })
+    setInput('')
+  }
+
+  function onFormSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    submitInput()
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (input.trim() && !isLoading) {
-        handleSubmit(e as unknown as FormEvent<HTMLFormElement>)
-      }
+      submitInput()
     }
+  }
+
+  function onInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value)
   }
 
   const lastMessage = messages[messages.length - 1]
@@ -298,7 +326,7 @@ function Chat({
             {messages.map((m, idx) => (
               <MessageRow
                 key={m.id}
-                message={m as Message}
+                message={m}
                 isStreaming={m.id === streamingAssistantId}
                 showDivider={idx > 0}
               />
@@ -349,7 +377,7 @@ function Chat({
           <AlertCircle size={13} className="shrink-0 mt-0.5" />
           <span className="flex-1 break-words leading-relaxed">{error.message}</span>
           <button
-            onClick={() => reload()}
+            onClick={() => regenerate()}
             className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/10 transition-colors"
             title="Retry"
           >
@@ -361,14 +389,14 @@ function Chat({
       {/* Composer — ghost input. Thin top hairline, textarea, submit appears
           only when there's text. Apple-style restraint. */}
       <form
-        onSubmit={handleSubmit}
+        onSubmit={onFormSubmit}
         className="shrink-0 border-t border-border/60 px-3 pt-3 pb-3"
       >
         <div className="relative flex items-center gap-2 rounded-xl border border-border bg-surface-elevated/60 px-3 py-2 focus-within:border-content-tertiary/50 transition-colors">
           <textarea
             ref={inputRef}
             value={input}
-            onChange={handleInputChange}
+            onChange={onInputChange}
             onKeyDown={onKeyDown}
             placeholder="Ask the assistant…"
             rows={1}
@@ -555,14 +583,25 @@ function EmptyState({ onSuggest }: { onSuggest: (text: string) => void }) {
 // flows as prose with inline tool rows.
 // ============================================================================
 
-type Part = NonNullable<Message['parts']>[number]
+type Part = ChatPart
+
+function isToolPart(p: Part): p is Extract<Part, { type: `tool-${string}` }> {
+  return typeof p.type === 'string' && p.type.startsWith('tool-') && p.type !== 'tool-result'
+}
+
+function textOfUserMessage(parts: Part[]): string {
+  return parts
+    .filter((p): p is Extract<Part, { type: 'text' }> => p.type === 'text')
+    .map((p) => p.text)
+    .join('')
+}
 
 function MessageRow({
   message,
   isStreaming,
   showDivider,
 }: {
-  message: Message
+  message: ChatMessage
   isStreaming: boolean
   showDivider: boolean
 }) {
@@ -571,9 +610,8 @@ function MessageRow({
   const parts: Part[] = useMemo(() => {
     const p = message.parts
     if (p && p.length > 0) return p
-    if (message.content) return [{ type: 'text', text: message.content }] as Part[]
     return []
-  }, [message.parts, message.content])
+  }, [message.parts])
 
   if (isUser) {
     return (
@@ -581,7 +619,7 @@ function MessageRow({
         {showDivider && <div className="chat-turn-divider" />}
         <div className="flex justify-end">
           <div className="max-w-[85%] text-[13.5px] leading-[1.55] text-content font-medium text-left whitespace-pre-wrap break-words">
-            {message.content}
+            {textOfUserMessage(parts)}
           </div>
         </div>
       </div>
@@ -602,10 +640,10 @@ function MessageRow({
               </div>
             )
           }
-          if (p.type === 'tool-invocation') {
+          if (isToolPart(p)) {
             return <ToolRow key={i} part={p} />
           }
-          // reasoning / source / file / step-start — ignore for now.
+          // reasoning / source / file / step-start / dynamic-tool — ignore for now.
           return null
         })}
         {isStreaming && <LiveDot />}
@@ -618,12 +656,20 @@ function MessageRow({
 // Tool rendering — humanized, live state.
 // ============================================================================
 
-type ToolPart = Extract<Part, { type: 'tool-invocation' }>
+// v5: tool parts have `type: 'tool-<name>'` (e.g. 'tool-records_query') and
+// carry `state` ∈ {'input-streaming','input-available','output-available',
+// 'output-error'} plus `input` / `output` / `errorText` fields.
+type ToolPart = Extract<Part, { type: `tool-${string}` }>
 
 function ToolRow({ part }: { part: ToolPart }) {
-  const inv = part.toolInvocation
-  const { label, path } = describeTool(inv.toolName, inv.args as Record<string, unknown> | undefined)
-  const isDone = inv.state === 'result'
+  const toolName =
+    typeof part.type === 'string' && part.type.startsWith('tool-')
+      ? part.type.slice('tool-'.length)
+      : 'tool'
+  const input = (part as { input?: unknown }).input as Record<string, unknown> | undefined
+  const state = (part as { state?: string }).state
+  const { label, path } = describeTool(toolName, input)
+  const isDone = state === 'output-available' || state === 'output-error'
 
   return (
     <div

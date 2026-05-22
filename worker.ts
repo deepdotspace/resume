@@ -10,7 +10,6 @@
  *   - AI chat (Vercel AI SDK + DeepSpace proxy)
  *   - Server actions (app-defined, bypass user RBAC)
  *   - Scoped R2 file storage
- *   - HMAC-authenticated cron
  *   - Static asset serving with SPA fallback
  */
 
@@ -18,8 +17,6 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import {
   verifyJwt,
-  verifyInternalSignature,
-  buildInternalPayload,
   createDeepSpaceAI,
 } from 'deepspace/worker'
 import type { JwtVerifierConfig, VerifyResult } from 'deepspace/worker'
@@ -27,13 +24,11 @@ import {
   RecordRoom as RecordRoomBase,
   YjsRoom as YjsRoomBase,
   CanvasRoom as CanvasRoomBase,
-  MediaRoom as MediaRoomBase,
   PresenceRoom as PresenceRoomBase,
 } from 'deepspace/worker'
 import type { ActionTools, ActionResult, DOManifest, DOBindings } from 'deepspace/worker'
-import { streamText, type LanguageModelV1 } from 'ai'
+import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 'ai'
 import { actions } from './src/actions/index.js'
-import { handleCron } from './src/cron.js'
 import { schemas } from './src/schemas.js'
 import { integrations } from './src/integrations.js'
 import { buildChatTools } from './src/ai/tools.js'
@@ -50,7 +45,6 @@ export const __DO_MANIFEST__ = [
   { binding: 'RECORD_ROOMS', className: 'RecordRoom', sqlite: true },
   { binding: 'YJS_ROOMS', className: 'YjsRoom', sqlite: true },
   { binding: 'CANVAS_ROOMS', className: 'CanvasRoom', sqlite: true },
-  { binding: 'MEDIA_ROOMS', className: 'MediaRoom', sqlite: true },
   { binding: 'PRESENCE_ROOMS', className: 'PresenceRoom', sqlite: true },
 ] as const satisfies DOManifest
 
@@ -66,7 +60,6 @@ export class RecordRoom extends RecordRoomBase {
 
 export class YjsRoom extends YjsRoomBase {}
 export class CanvasRoom extends CanvasRoomBase {}
-export class MediaRoom extends MediaRoomBase {}
 export class PresenceRoom extends PresenceRoomBase {}
 
 // =============================================================================
@@ -75,7 +68,6 @@ export class PresenceRoom extends PresenceRoomBase {}
 
 interface Env extends DOBindings<typeof __DO_MANIFEST__> {
   ASSETS: Fetcher
-  FILES: R2Bucket
   PLATFORM_WORKER: Fetcher
   APP_IDENTITY_TOKEN: string
   API_WORKER: Fetcher
@@ -91,7 +83,6 @@ interface Env extends DOBindings<typeof __DO_MANIFEST__> {
    * they are the JWT subject.
    */
   APP_OWNER_JWT: string
-  INTERNAL_STORAGE_HMAC_SECRET: string
 }
 
 type AppContext = { Bindings: Env }
@@ -277,8 +268,6 @@ app.get('/ws/yjs/:docId', wsRoute((env) => env.YJS_ROOMS, () => ({ role: 'member
 
 app.get('/ws/canvas/:docId', wsRoute((env) => env.CANVAS_ROOMS, () => ({ role: 'member' })))
 
-app.get('/ws/media/:roomId', wsRoute((env) => env.MEDIA_ROOMS, () => ({ role: 'member' })))
-
 app.get('/ws/presence/:scopeId', wsRoute(
   (env) => env.PRESENCE_ROOMS,
   (auth) => ({
@@ -305,35 +294,19 @@ app.post('/api/actions/:name', async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
   const tools = createActionTools(c.env, auth.result.userId, auth.token)
-  const result = await action({ userId: auth.result.userId, params, tools })
+  const result = await action({
+    userId: auth.result.userId,
+    params,
+    tools,
+    env: c.env as unknown as Record<string, unknown>,
+    callerJwt: auth.token,
+  })
   return c.json(result as unknown as Record<string, unknown>)
 })
 
 // ---------------------------------------------------------------------------
 // AI chat — multi-turn tool-use via Vercel AI SDK + DeepSpace proxy
 // ---------------------------------------------------------------------------
-
-/**
- * Keep full tool results for this many most-recent assistant turns. Older
- * tool-invocation results get their payload replaced with a small marker,
- * which massively reduces input tokens on long sessions where the agent
- * called tools that returned large blobs (e.g. records_get on a large
- * resume). The agent can always re-fetch if it actually needs the data.
- */
-const KEEP_RECENT_TOOL_RESULTS = 5
-
-/**
- * Hard cap on total message-history character count before sliding-window
- * trimming kicks in. ~4 chars per token × 240K chars ≈ 60K input tokens from
- * history alone. Well under every supported model's context window.
- */
-const HISTORY_CHAR_CAP = 240_000
-
-/**
- * Don't trim below this many messages — preserves a floor of recent context
- * even if a single turn blew past the cap.
- */
-const MIN_KEPT_MESSAGES = 10
 
 /**
  * Max bytes of a single tool invocation's result we'll hand back to the
@@ -382,71 +355,29 @@ function stripOverrideToggle(
   return { ...params, data: rest }
 }
 
-type ChatTurn = {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  parts?: Array<unknown>
-}
-
 /**
- * Walk message history and replace the `result` payload of tool-invocation
- * parts in OLDER assistant messages with a small marker. Errors
- * (success=false) are preserved — they're small and useful for the agent's
- * reasoning.
+ * Stamp `updatedAt: Date.now()` on every agent-driven records.update /
+ * records.create. The editor's form-state useEffect re-syncs from storage
+ * only when `data.updatedAt` moves forward, so without this stamp the
+ * agent's writes land in the DB but the user must reload to see them.
+ *
+ * User writes already do this client-side in `useResumes.updateResume`;
+ * this closes the same loop for the agent path so the user never has to
+ * wonder whether an AI edit actually took effect. Deterministic — does
+ * not depend on the LLM following a system-prompt instruction.
  */
-function truncateOldToolResults(messages: ChatTurn[], keepLast: number): ChatTurn[] {
-  const assistantIdxs: number[] = []
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === 'assistant') assistantIdxs.push(i)
-  }
-  const protectedStart = assistantIdxs.length > keepLast
-    ? assistantIdxs[assistantIdxs.length - keepLast]
-    : 0
-
-  return messages.map((msg, idx) => {
-    if (msg.role !== 'assistant' || idx >= protectedStart) return msg
-    if (!Array.isArray(msg.parts) || msg.parts.length === 0) return msg
-    const newParts = msg.parts.map((p) => {
-      if (!p || typeof p !== 'object') return p
-      const anyP = p as Record<string, unknown>
-      if (anyP.type !== 'tool-invocation') return p
-      const inv = anyP.toolInvocation as Record<string, unknown> | undefined
-      if (!inv || inv.state !== 'result') return p
-      const result = inv.result as Record<string, unknown> | undefined
-      if (result && result.success === false) return p
-      return {
-        ...anyP,
-        toolInvocation: {
-          ...inv,
-          result: {
-            _truncated: true,
-            note: 'Result from an earlier turn omitted to save context. Call this tool again if you need the data.',
-          },
-        },
-      }
-    })
-    return { ...msg, parts: newParts }
-  })
-}
-
-/**
- * Drop oldest messages until total character count is under `charCap`,
- * preserving at least `minKept` messages at the tail.
- */
-function applySlidingWindow(messages: ChatTurn[], charCap: number, minKept: number): ChatTurn[] {
-  const sizeOf = (m: ChatTurn): number => {
-    const text = (m.content ?? '') + (m.parts ? JSON.stringify(m.parts) : '')
-    return text.length
-  }
-  let total = messages.reduce((acc, m) => acc + sizeOf(m), 0)
-  if (total <= charCap) return messages
-  const out = [...messages]
-  while (out.length > minKept && total > charCap) {
-    const dropped = out.shift()
-    if (!dropped) break
-    total -= sizeOf(dropped)
-  }
-  return out
+function stampUpdatedAt(
+  toolName: string,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  if (toolName !== 'records.update' && toolName !== 'records.create') return params
+  const collection = params.collection
+  // Only collections whose schemas declare an `updatedAt` field. Stamping
+  // on schemas without that column would be silently dropped by the DO
+  // anyway, but explicit is clearer than implicit.
+  if (collection !== 'resumes' && collection !== 'profiles') return params
+  const data = (params.data ?? {}) as Record<string, unknown>
+  return { ...params, data: { ...data, updatedAt: Date.now() } }
 }
 
 app.post('/api/ai/chat', async (c) => {
@@ -458,7 +389,7 @@ app.post('/api/ai/chat', async (c) => {
   // If missing we fall back to the user's editorSettings record (see
   // loadContext). modelId is validated against the catalog.
   let body: {
-    messages: ChatTurn[]
+    messages: UIMessage[]
     activeResumeId?: string | null
     modelId?: string | null
   }
@@ -499,12 +430,19 @@ app.post('/api/ai/chat', async (c) => {
     const doId = c.env.RECORD_ROOMS.idFromName(scopeId)
     const stub = c.env.RECORD_ROOMS.get(doId)
     try {
-      // userId goes in the body — handleToolExecute reads it from there,
-      // not headers.
+      // SDK 0.3.x contract: caller userId goes in the `X-User-Id` HEADER, not
+      // the body. The DO uses it to resolve the caller's role for RBAC; if
+      // missing, the call is treated as anonymous (no resumes visible).
       const res = await stub.fetch(new Request('https://internal/api/tools/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: toolName, params, userId: callerUserId }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': callerUserId,
+        },
+        body: JSON.stringify({ tool: toolName, params }),
+        // Forward the route's AbortSignal so an in-flight tool fetch cancels
+        // when the client disconnects mid-stream.
+        signal: c.req.raw.signal,
       }))
       return await res.json()
     } catch (err) {
@@ -520,31 +458,25 @@ app.post('/api/ai/chat', async (c) => {
   }
 
   const tools = buildChatTools(async (toolName, params) => {
-    const guarded = stripOverrideToggle(toolName, params)
+    const guarded = stampUpdatedAt(toolName, stripOverrideToggle(toolName, params))
     const payload = await execTool(toolName, guarded)
     return capToolResultSize(payload)
   })
 
-  // Context management: strip bulky tool-result payloads from old turns,
-  // then apply a sliding-window safety cap. Both are no-ops on short
-  // sessions; kick in on long ones to bound cost and avoid
-  // context-window overflow.
-  const processedMessages = applySlidingWindow(
-    truncateOldToolResults(rawMessages, KEEP_RECENT_TOOL_RESULTS),
-    HISTORY_CHAR_CAP,
-    MIN_KEPT_MESSAGES,
-  )
+  // AI SDK v5: convert the UIMessage[] wire format from useChat into the
+  // ModelMessage[] shape streamText consumes (splits assistant tool-call
+  // and tool-result parts into the paired messages providers expect).
+  const modelMessages = convertToModelMessages(rawMessages)
 
   const result = streamText({
-    // Provider factories return a V1|V2 union; streamText's types expect V1.
-    // All shipped providers are V1-compatible at runtime.
-    model: providerFactory(resolvedModel.id) as LanguageModelV1,
+    model: providerFactory(resolvedModel.id),
     system: buildResumeSystemPrompt(context),
-    messages: processedMessages,
+    messages: modelMessages,
     tools,
     // A rich context means most turns resolve in 1–3 tool calls; the ceiling
-    // stays generous for legitimate multi-step edits.
-    maxSteps: 20,
+    // stays generous for legitimate multi-step edits. v5 expresses
+    // "stop after N steps" as a `stopWhen` predicate.
+    stopWhen: stepCountIs(20),
     // Cancel the upstream provider call when the HTTP client disconnects
     // (tab close, navigation, or explicit `stop()` from useChat).
     abortSignal: c.req.raw.signal,
@@ -553,8 +485,9 @@ app.post('/api/ai/chat', async (c) => {
     },
   })
 
-  return result.toDataStreamResponse({
-    getErrorMessage: (error) => {
+  return result.toUIMessageStreamResponse({
+    sendReasoning: false,
+    onError: (error: unknown): string => {
       console.error('[ai-chat] response error:', error)
       return error instanceof Error ? error.message : String(error)
     },
@@ -604,23 +537,6 @@ app.all('/api/files/*', async (c) => {
 })
 
 // ---------------------------------------------------------------------------
-// Internal cron (HMAC-authenticated)
-// ---------------------------------------------------------------------------
-
-app.post('/internal/cron', async (c) => {
-  const body = await c.req.text()
-  const valid = await verifyInternalSignature({
-    secret: c.env.INTERNAL_STORAGE_HMAC_SECRET,
-    payload: buildInternalPayload(body),
-    signature: c.req.header('x-internal-signature') ?? '',
-    timestamp: c.req.header('x-internal-timestamp') ?? '',
-  })
-  if (!valid) return c.json({ error: 'Forbidden' }, 403)
-  await handleCron(JSON.parse(body))
-  return c.json({ ok: true })
-})
-
-// ---------------------------------------------------------------------------
 // Static assets (SPA fallback)
 // ---------------------------------------------------------------------------
 
@@ -641,21 +557,25 @@ app.get('*', async (c) => {
 function createActionTools(env: Env, userId: string, callerJwt: string): ActionTools {
   const scopeId = makeScopeId(env.APP_NAME)
 
-  async function execTool(tool: string, params: Record<string, unknown>): Promise<ActionResult> {
+  async function execTool<T = unknown>(tool: string, params: Record<string, unknown>): Promise<ActionResult<T>> {
     const doId = env.RECORD_ROOMS.idFromName(scopeId)
     const stub = env.RECORD_ROOMS.get(doId)
-    // `?appAction=true` tells the DO to bypass user RBAC (server-actions
-    // run with the owner's privileges). `userId` goes in the body — the
-    // handleToolExecute contract reads it there, not from a header.
-    const res = await stub.fetch(new Request('https://internal/api/tools/execute?appAction=true', {
+    // SDK 0.3.x contract: caller userId goes in the `X-User-Id` header.
+    // `X-App-Action: true` (header, not query string) tells the DO to
+    // bypass user RBAC so server-actions run with the owner's privileges.
+    const res = await stub.fetch(new Request('https://internal/api/tools/execute', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tool, params, userId }),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+        'X-App-Action': 'true',
+      },
+      body: JSON.stringify({ tool, params }),
     }))
-    return res.json() as Promise<ActionResult>
+    return res.json() as Promise<ActionResult<T>>
   }
 
-  async function callIntegration(endpoint: string, data?: unknown): Promise<ActionResult> {
+  async function callIntegration<T>(endpoint: string, data?: unknown): Promise<ActionResult<T>> {
     const integrationName = endpoint.split('/')[0]
     const billingMode = integrations[integrationName]?.billing ?? 'developer'
 
@@ -671,16 +591,26 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
       },
       body: data != null ? JSON.stringify(data) : undefined,
     })
-    return res.json() as Promise<ActionResult>
+    return res.json() as Promise<ActionResult<T>>
   }
 
   return {
-    create: (sid, collection, data) => execTool('records.create', { scopeId: sid, collection, data }),
-    update: (sid, collection, recordId, data) => execTool('records.update', { scopeId: sid, collection, recordId, data }),
-    remove: (sid, collection, recordId) => execTool('records.delete', { scopeId: sid, collection, recordId }),
-    get: (sid, collection, recordId) => execTool('records.get', { scopeId: sid, collection, recordId }),
-    query: (sid, collection, options) => execTool('records.query', { scopeId: sid, collection, ...options }),
+    create: (collection, data, recordId) =>
+      execTool('records.create', recordId != null ? { collection, data, recordId } : { collection, data }),
+    update: (collection, recordId, data) =>
+      execTool('records.update', { collection, recordId, data }),
+    remove: (collection, recordId) => execTool('records.delete', { collection, recordId }),
+    get: (collection, recordId) => execTool('records.get', { collection, recordId }),
+    query: (collection, options) => execTool('records.query', { collection, ...(options ?? {}) }),
     integration: callIntegration,
+    registerUser: (opts) =>
+      execTool('users.register', {
+        userId: opts.userId ?? userId,
+        name: opts.name,
+        email: opts.email,
+        imageUrl: opts.imageUrl,
+        isAdmin: opts.isAdmin === true,
+      }),
   }
 }
 
