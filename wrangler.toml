@@ -1,4 +1,4 @@
-name = "resume-builder"
+name = "resume"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 main = "worker.ts"
@@ -28,7 +28,7 @@ bindings = [
 ]
 
 [vars]
-APP_NAME = "resume-builder"
+APP_NAME = "resume"
 
 [dev]
 port = 8780

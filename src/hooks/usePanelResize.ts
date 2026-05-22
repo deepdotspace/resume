@@ -10,7 +10,7 @@ const EDITOR_RATIO_MIN = 0.3
 const EDITOR_RATIO_MAX = 0.7
 const EDITOR_RATIO_DEFAULT = 0.45
 
-const STORAGE_KEY = 'resume-builder-panel-sizes'
+const STORAGE_KEY = 'resume-panel-sizes'
 
 function loadRatio(): number {
   try {

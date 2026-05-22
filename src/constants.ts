@@ -1,5 +1,5 @@
 /** App name — replaced by the CLI during scaffolding */
-export const APP_NAME = 'resume-builder'
+export const APP_NAME = 'resume'
 
 /**
  * Build the RecordRoom scope id for this app. Derived from the env-provided

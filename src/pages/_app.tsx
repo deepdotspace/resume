@@ -56,7 +56,7 @@ function AuthGate({ children }: { children: ReactNode }) {
       <div className="flex items-center justify-center min-h-screen bg-surface">
         <div className="text-center">
           <div className="w-10 h-10 border-2 border-accent/30 border-t-accent rounded-full animate-spin mx-auto mb-3" />
-          <div className="text-content-secondary text-sm">Loading Resume Builder...</div>
+          <div className="text-content-secondary text-sm">Loading Resume...</div>
         </div>
       </div>
     )
