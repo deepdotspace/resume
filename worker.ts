@@ -191,7 +191,11 @@ app.get('/api/integrations', async (c) => {
 
 app.all('/api/integrations/:name/:endpoint', async (c) => {
   const integrationName = c.req.param('name')
-  const billingMode = integrations[integrationName]?.billing ?? 'developer'
+  // Default to 'user' (caller pays) so an integration that nobody remembered
+  // to register in src/integrations.ts can't silently bill the developer.
+  // Explicitly set `billing: 'developer'` in src/integrations.ts for the few
+  // surfaces that should run on the owner's tab (none today).
+  const billingMode = integrations[integrationName]?.billing ?? 'user'
 
   const auth = await resolveAuth(c.req.raw, c.env)
   if (!auth && billingMode === 'user') {
@@ -577,7 +581,8 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
 
   async function callIntegration<T>(endpoint: string, data?: unknown): Promise<ActionResult<T>> {
     const integrationName = endpoint.split('/')[0]
-    const billingMode = integrations[integrationName]?.billing ?? 'developer'
+    // Same safe default as the HTTP proxy above — unregistered → user pays.
+    const billingMode = integrations[integrationName]?.billing ?? 'user'
 
     // Use the owner JWT for developer-billed calls, the caller's JWT otherwise.
     // The api-worker bills the JWT subject — no client-supplied override.
