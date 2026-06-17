@@ -21,6 +21,26 @@ npm install
 npm run dev
 ```
 
+## Testing
+
+All `deepspace test` runs need a one-time `npx deepspace login` (it provisions
+dev workers). After that:
+
+```bash
+npm test            # default suite (smoke + api) — runs signed-out, no test accounts needed
+npm run test:e2e    # adds the authenticated specs (collab.spec.ts)
+```
+
+The authenticated specs sign in through the SDK's `users` fixture, which uses
+the local test-account pool (public signup is disabled by design). Provision it
+once before running `test:e2e`:
+
+```bash
+npx deepspace login   # one-time, also required for `npm test`
+npx deepspace test-accounts create --email test-1-$(date +%s)@deepspace.test --password Pass123! --name "Test User 1"
+npx deepspace test-accounts create --email test-2-$(date +%s)@deepspace.test --password Pass123! --name "Test User 2"
+```
+
 ## Deployment
 
 ```bash

@@ -2,37 +2,32 @@ import { test, expect } from '@playwright/test'
 import { captureConsoleErrors } from './helpers/errors'
 
 /**
- * Wait for the React app to mount. The app shows either:
- * - "Loading..." while auth initializes
- * - The navigation bar once ready
+ * Smoke tests run signed-out, so they need no test accounts and keep the
+ * default `npx deepspace test` suite green on a fresh clone.
+ *
+ * This app is fully auth-gated: `src/pages/_app.tsx` wraps every route in an
+ * AuthGate that renders the SDK's <AuthOverlay/> until the visitor signs in.
+ * So the signed-out surface to assert is the overlay, not an app nav bar.
+ * Signed-in behaviour is covered in collab.spec.ts via the `users` fixture.
  */
-async function waitForApp(page: import('@playwright/test').Page) {
-  await page.waitForSelector('[data-testid="app-navigation"]', { timeout: 15000 })
-}
+test.describe('Smoke tests (signed out)', () => {
+  test('app mounts and shows the auth overlay when signed out', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByTestId('auth-overlay')).toBeVisible({ timeout: 15000 })
+  })
 
-test.describe('Smoke tests', () => {
   test('app loads without JS errors', async ({ page }) => {
     const errors = captureConsoleErrors(page)
     await page.goto('/')
-    await waitForApp(page)
+    await expect(page.getByTestId('auth-overlay')).toBeVisible({ timeout: 15000 })
     expect(errors).toEqual([])
   })
 
-  test('navigation is visible', async ({ page }) => {
-    await page.goto('/')
-    await waitForApp(page)
-    await expect(page.getByTestId('app-navigation')).toBeVisible()
-  })
-
-  test('sign-in button visible when logged out', async ({ page }) => {
-    await page.goto('/')
-    await waitForApp(page)
-    await expect(page.getByTestId('nav-sign-in-button')).toBeVisible()
-  })
-
-  test('unknown route shows 404', async ({ page }) => {
-    await page.goto('/nonexistent-page-xyz')
-    await waitForApp(page)
-    await expect(page.locator('text=404')).toBeVisible()
+  test('gated dashboard content is not exposed to signed-out visitors', async ({ page }) => {
+    await page.goto('/home')
+    await expect(page.getByTestId('auth-overlay')).toBeVisible({ timeout: 15000 })
+    // The AuthGate replaces children with the overlay when signed out, so the
+    // dashboard's signed-in landmark (the left-rail wordmark) must be absent.
+    await expect(page.locator('.wordmark')).toHaveCount(0)
   })
 })

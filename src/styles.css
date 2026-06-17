@@ -257,9 +257,9 @@ html:not(.dark) {
 /* ============================================
    App-specific styles — Resume Builder
    Ported from widget-resume-builder
+   (Inter + Playfair Display are loaded via <link> in index.html — a late
+   CSS @import is ignored by the spec, so the fonts must come from the HTML.)
    ============================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap');
 
 /* ============================================
    Background Layer

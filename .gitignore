@@ -4,3 +4,5 @@ dist
 .dev.vars
 .worker-bundle.js
 *.tgz
+test-results
+playwright-report

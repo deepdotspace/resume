@@ -6,10 +6,29 @@ test.describe('API tests', () => {
     expect(res.ok()).toBeTruthy()
   })
 
-  test('WebSocket endpoint exists', async ({ page }) => {
+  test('record-room websocket endpoint accepts an upgrade', async ({ page }) => {
+    // Anonymous WS upgrade is allowed (the worker assigns an anon id when no
+    // token is present), so this exercises the route without needing auth.
     await page.goto('/')
-    // Wait for the app to connect its WebSocket (it auto-connects on mount)
-    await page.waitForSelector('[data-testid="app-navigation"]', { timeout: 15000 })
-    // If the app loaded and connected, the WS endpoint works
+    const result = await page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          const ws = new WebSocket(`ws://${location.host}/ws/app:resume`)
+          const timer = setTimeout(() => {
+            resolve('timeout')
+            ws.close()
+          }, 8000)
+          ws.onopen = () => {
+            clearTimeout(timer)
+            ws.close()
+            resolve('open')
+          }
+          ws.onerror = () => {
+            clearTimeout(timer)
+            resolve('error')
+          }
+        }),
+    )
+    expect(result).toBe('open')
   })
 })
