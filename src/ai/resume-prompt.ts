@@ -27,12 +27,18 @@ const STATIC_RULES = `You are the AI assistant inside the resume builder. The us
 
 The user edits content through structured form fields and the app regenerates the LaTeX automatically. Edit the per-section columns on the resume record (\`summary\`, \`experience\`, \`education\`, \`skills\`, etc.), NOT \`latexSource\`. Writes to \`latexSource\` in this mode are ignored by the app.
 
-Column shapes:
-- \`summary\` — plain string.
-- \`personalInfo\` — JSON-encoded object.
-- \`experience\`, \`education\`, \`skills\`, \`languages\`, \`projects\`, \`certifications\`, \`customSections\` — JSON-encoded arrays of objects.
+Column shapes — JSON columns are written as JSON STRINGS encoding EXACTLY these shapes:
+- \`summary\` — plain string (not JSON).
+- \`personalInfo\` — {"name","title","email","phone","location","website","linkedin","photo"} — string values. Europass extras: "nationality", "dateOfBirth", "drivingLicense".
+- \`experience\` — [{"company","role","startDate","endDate","bullets":["did X","did Y"]}] — \`bullets\` is ALWAYS an array of strings.
+- \`education\` — [{"institution","degree","field","startDate","endDate","gpa"}]
+- \`skills\` — [{"category":"Languages","items":["Python","Go"]}] — \`items\` is ALWAYS an array of short skill strings, NEVER one comma-joined string.
+- \`languages\` — [{"name":"English","proficiency":"C1"}] — Europass extras: "isMotherTongue" (bool), "cefr" ({listening,reading,spokenInteraction,spokenProduction,writing}).
+- \`projects\` — [{"name","description","url","bullets":["..."]}]
+- \`certifications\` — [{"name","issuer","date"}]
+- \`customSections\` — [{"title","entries":[{"primary","secondary","date","bullets":["..."]}]}]
 
-When you update a JSON column, write back the FULL updated array/object as a JSON string. Never send a partial merge; the backend does a whole-column replace.
+When you update a JSON column, write back the FULL updated array/object as a JSON string. Never send a partial merge; the backend does a whole-column replace. Writes that don't match these shapes are rejected with an error telling you what to fix — correct the payload and retry.
 
 ### Override mode (latexOverrideMode = true)
 

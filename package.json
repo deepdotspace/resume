@@ -39,7 +39,7 @@
     "ai": "^5.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "deepspace": "^0.4.1",
+    "deepspace": "^0.5.7",
     "framer-motion": "^11.15.0",
     "hono": "^4.7.0",
     "lucide-react": "^0.460.0",
@@ -64,7 +64,7 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "vite": "^8.0.0",
-    "vitest": "^3.0.0",
+    "vitest": "^4.1.10",
     "wrangler": "4.81.1"
   },
   "overrides": {

@@ -91,7 +91,7 @@ export const TEMPLATE_METADATA: TemplateMetadata[] = [
     description: 'Clean single-column, no photo, ideal for US/global roles',
     region: 'US / Global',
     color: '#6366F1',
-    previewUrl: 'https://deepspacesites.com/api/files/widgets/file-uploader_1773856036299/1773856257927-xtospqjr6-Modern-Resume.pdf',
+    previewUrl: '/templates/modern.pdf',
   },
   {
     id: 'europass',
@@ -99,7 +99,7 @@ export const TEMPLATE_METADATA: TemplateMetadata[] = [
     description: 'Photo, nationality, CEFR language grid — EU standard',
     region: 'European Union',
     color: '#0EA5E9',
-    previewUrl: 'https://deepspacesites.com/api/files/widgets/file-uploader_1773856036299/1773856258225-ynr2hlefp-Modern-Resume(1).pdf',
+    previewUrl: '/templates/europass.pdf',
   },
   {
     id: 'academic',
@@ -107,7 +107,7 @@ export const TEMPLATE_METADATA: TemplateMetadata[] = [
     description: 'Multi-page with publications, teaching, grants',
     region: 'Global',
     color: '#10B981',
-    previewUrl: 'https://deepspacesites.com/api/files/widgets/file-uploader_1773856036299/1773856258623-hyry3uhmx-Modern-Resume(2).pdf',
+    previewUrl: '/templates/academic.pdf',
   },
   {
     id: 'twocolumn',
@@ -115,7 +115,7 @@ export const TEMPLATE_METADATA: TemplateMetadata[] = [
     description: 'Sidebar for skills/contact, main area for experience',
     region: 'Global',
     color: '#F59E0B',
-    previewUrl: 'https://deepspacesites.com/api/files/widgets/file-uploader_1773856036299/1773856258900-n8igqdrzi-Modern-Resume(3).pdf',
+    previewUrl: '/templates/twocolumn.pdf',
   },
   {
     id: 'jakes',
@@ -123,7 +123,7 @@ export const TEMPLATE_METADATA: TemplateMetadata[] = [
     description: 'ATS-optimized, Education-first, most popular on Overleaf',
     region: 'US / Global',
     color: '#64748B',
-    previewUrl: 'https://deepspacesites.com/api/files/widgets/file-uploader_1773856036299/1773856259156-n9k7dxqnd-Modern-Resume(4).pdf',
+    previewUrl: '/templates/jakes.pdf',
   },
 ]
 
@@ -221,43 +221,43 @@ export const BACKGROUNDS: BackgroundOption[] = [
     id: 'golden-horizon',
     label: 'Golden Horizon',
     description: 'Warm sky and distant hills — peaceful, hopeful, golden hour',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773416354353/1773416967880-h7x1wq8qw-pexels-eberhardgross-691668.jpg',
+    url: '/backgrounds/golden-horizon.jpg',
   },
   {
     id: 'abstract-painting',
     label: 'Abstract Painting',
     description: 'Bold textures and vivid hues — vibrant, artistic, creative',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773337800946/1773338060038-yh5kmph0o-pexels-steve-1269968.jpg',
+    url: '/backgrounds/abstract-painting.jpg',
   },
   {
     id: 'aged-parchment',
     label: 'Aged Parchment',
     description: 'Brown canvas texture — rustic, vintage, classic',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773337800946/1773338057925-n5q23tz7l-pexels-pixabay-235985.jpg',
+    url: '/backgrounds/aged-parchment.jpg',
   },
   {
     id: 'starry-sky',
     label: 'Starry Sky',
     description: 'Milky Way night sky — cosmic, deep space, exploratory',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773416354353/1773417003064-b4u8cg3jq-pexels-philippedonn-1169754.jpg',
+    url: '/backgrounds/starry-sky.jpg',
   },
   {
     id: 'mountain-landscape',
     label: 'Mountain Landscape',
     description: 'Dramatic peaks and valleys — majestic, expansive, adventurous',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773416354353/1773416921626-rcohs4ddu-pexels-eberhardgross-443446.jpg',
+    url: '/backgrounds/mountain-landscape.jpg',
   },
   {
     id: 'forest-path',
     label: 'Forest Path',
     description: 'Sun-dappled woodland trail — natural, serene, inviting',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773416354353/1773416920912-pdr2giliv-pexels-catiamatos-1072179.jpg',
+    url: '/backgrounds/forest-path.jpg',
   },
   {
     id: 'metropolitan-city',
     label: 'Metropolitan City',
     description: 'Bright city lights at night — urban, dynamic, energetic',
-    url: 'https://deepspacesites.com/api/files/widgets/file-url-uploader_1773416354353/1773417055843-9jmjmvgbz-pexels-maxfrancis-2246476.jpg',
+    url: '/backgrounds/metropolitan-city.jpg',
   },
 ]
 

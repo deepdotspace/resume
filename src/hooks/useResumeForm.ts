@@ -15,7 +15,16 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useResumes } from './useResumes'
-import type { ResumeFormData } from '../templates'
+import type { PersonalInfo, ResumeFormData } from '../templates'
+import {
+  normalizeSkills,
+  normalizeExperience,
+  normalizeEducation,
+  normalizeLanguages,
+  normalizeCertifications,
+  normalizeProjects,
+  normalizeCustomSections,
+} from '../templates/normalize'
 import type { Resume } from './useResumes'
 import { DEFAULT_SECTION_ORDER } from '../constants'
 import type { SectionKey } from '../constants'
@@ -43,16 +52,25 @@ function safeJson<T>(str: string | undefined, fallback: T): T {
 function resumeToFormData(resume: Resume | null): ResumeFormData | null {
   if (!resume) return null
   const d = resume.data
+  // Section values run through the shape normalizers: rows written before
+  // the worker-side write guard existed can hold near-miss shapes (e.g.
+  // `items` as a comma-joined string), and the forms/LaTeX mappers require
+  // real arrays. `?? []` covers values the normalizers can't recognize.
+  const pi = safeJson<unknown>(d.personalInfo, null)
+  const personalInfo: PersonalInfo =
+    pi && typeof pi === 'object' && !Array.isArray(pi)
+      ? { ...DEFAULT_PERSONAL_INFO, ...(pi as Partial<PersonalInfo>) }
+      : DEFAULT_PERSONAL_INFO
   return {
-    personalInfo: safeJson(d.personalInfo, DEFAULT_PERSONAL_INFO),
-    summary: (d.summary as string) || '',
-    experience: safeJson(d.experience, []),
-    education: safeJson(d.education, []),
-    skills: safeJson(d.skills, []),
-    languages: safeJson(d.languages, []),
-    certifications: safeJson(d.certifications, []),
-    projects: safeJson(d.projects, []),
-    customSections: safeJson(d.customSections, []),
+    personalInfo,
+    summary: typeof d.summary === 'string' ? d.summary : '',
+    experience: normalizeExperience(safeJson<unknown>(d.experience, [])) ?? [],
+    education: normalizeEducation(safeJson<unknown>(d.education, [])) ?? [],
+    skills: normalizeSkills(safeJson<unknown>(d.skills, [])) ?? [],
+    languages: normalizeLanguages(safeJson<unknown>(d.languages, [])) ?? [],
+    certifications: normalizeCertifications(safeJson<unknown>(d.certifications, [])) ?? [],
+    projects: normalizeProjects(safeJson<unknown>(d.projects, [])) ?? [],
+    customSections: normalizeCustomSections(safeJson<unknown>(d.customSections, [])) ?? [],
   }
 }
 

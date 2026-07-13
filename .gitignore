@@ -6,3 +6,4 @@ dist
 *.tgz
 test-results
 playwright-report
+.claude

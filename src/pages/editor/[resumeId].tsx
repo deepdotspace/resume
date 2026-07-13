@@ -51,10 +51,15 @@ export default function EditorPage() {
     }
   }, [resumeId, updateSetting])
 
+  // Redirect for deleted/foreign ids — but only if the record stays missing.
+  // Right after "create → navigate", the DO's create ack can beat the room
+  // broadcast that inserts the row into the local cache, so `resumeExists`
+  // is briefly false on first mount; bouncing immediately would kick the
+  // user back to /home. The grace timer cancels as soon as the row arrives.
   useEffect(() => {
-    if (resumesReady && resumeExists === false) {
-      navigate('/home', { replace: true })
-    }
+    if (!(resumesReady && resumeExists === false)) return
+    const bounce = setTimeout(() => navigate('/home', { replace: true }), 2000)
+    return () => clearTimeout(bounce)
   }, [resumesReady, resumeExists, navigate])
 
   const handleBack = useCallback(() => {

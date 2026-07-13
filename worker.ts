@@ -35,6 +35,7 @@ import { buildChatTools } from './src/ai/tools.js'
 import { loadContext } from './src/ai/context.js'
 import { buildResumeSystemPrompt } from './src/ai/resume-prompt.js'
 import { resolveModel } from './src/ai/models.js'
+import { normalizeResumeWrite } from './src/templates/normalize.js'
 import { makeScopeId } from './src/constants.js'
 
 // =============================================================================
@@ -462,7 +463,13 @@ app.post('/api/ai/chat', async (c) => {
   }
 
   const tools = buildChatTools(async (toolName, params) => {
-    const guarded = stampUpdatedAt(toolName, stripOverrideToggle(toolName, params))
+    // Shape-check section columns before anything is stored: coerce
+    // unambiguous near-misses, bounce the rest back to the model with an
+    // actionable error. Keeps stored rows matching the shapes the form and
+    // LaTeX generators consume regardless of what the model emits.
+    const shaped = normalizeResumeWrite(toolName, stripOverrideToggle(toolName, params))
+    if (!shaped.ok) return { success: false, error: shaped.error }
+    const guarded = stampUpdatedAt(toolName, shaped.params)
     const payload = await execTool(toolName, guarded)
     return capToolResultSize(payload)
   })
