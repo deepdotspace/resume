@@ -5,8 +5,8 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Settings, Sun, Moon, Plus, FileText, User, Check, Globe } from 'lucide-react'
-import { useQuery, useUser } from 'deepspace'
+import { ArrowLeft, ArrowRight, Settings, Sun, Moon, Plus, FileText, User, Check, Globe, LogOut } from 'lucide-react'
+import { useQuery, useUser, signOut } from 'deepspace'
 import ThoughtBubble from '../components/robot/ThoughtBubble'
 import ResumeCard from '../components/dashboard/ResumeCard'
 import TemplateCard from '../components/dashboard/TemplateCard'
@@ -324,6 +324,13 @@ export default function HomePage() {
                     title="Settings"
                   >
                     <Settings className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => void signOut()}
+                    className="toolbar-btn"
+                    title="Log out"
+                  >
+                    <LogOut className="w-4 h-4" />
                   </button>
                 </div>
               </>
