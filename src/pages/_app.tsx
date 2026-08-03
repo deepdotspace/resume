@@ -10,7 +10,7 @@ import { Outlet } from 'react-router-dom'
 import { DeepSpaceAuthProvider, useAuth, AuthOverlay } from 'deepspace'
 import { RecordProvider, RecordScope } from 'deepspace'
 import { ToastProvider } from '../components/ui'
-import { APP_NAME, SCOPE_ID } from '../constants'
+import { SCOPE_ID } from '../constants'
 import { schemas } from '../schemas'
 import { RobotProvider } from '../hooks/useRobotContext'
 import BackgroundLayer from '../components/shared/BackgroundLayer'
@@ -83,7 +83,7 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   return (
     <RecordProvider>
-      <RecordScope roomId={SCOPE_ID} schemas={schemas} appId={APP_NAME}>
+      <RecordScope roomId={SCOPE_ID} schemas={schemas}>
         {children}
       </RecordScope>
     </RecordProvider>
