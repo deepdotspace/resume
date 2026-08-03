@@ -29,7 +29,7 @@ bindings = [
 
 [vars]
 APP_NAME = "resume"
-DEEPSPACE_APP_ID = "resume"
+DEEPSPACE_APP_ID = "app_01KZ49ZM4RMPFR97TN6G2MRDWW"
 
 [dev]
 port = 8780
