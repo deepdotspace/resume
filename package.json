@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "deepspace dev",
+    "dev": "deepspace dev start",
     "build": "vite build",
     "preview": "vite preview",
     "login": "deepspace auth login",
@@ -39,7 +39,7 @@
     "ai": "^5.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "deepspace": "^0.9.0",
+    "deepspace": "^0.9.1",
     "framer-motion": "^11.15.0",
     "hono": "^4.7.0",
     "lucide-react": "^0.460.0",

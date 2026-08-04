@@ -69,8 +69,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.1
       deepspace:
-        specifier: ^0.9.0
-        version: 0.9.0(@cloudflare/workers-types@4.20260522.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(clsx@2.1.1)(lucide-react@0.460.0(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(tailwind-merge@2.6.1)(vitest@4.1.10(@opentelemetry/api@1.9.0)(vite@8.0.14(esbuild@0.27.7)(jiti@2.7.0)))
+        specifier: ^0.9.1
+        version: 0.9.1(@cloudflare/workers-types@4.20260522.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(clsx@2.1.1)(lucide-react@0.460.0(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(tailwind-merge@2.6.1)(vitest@4.1.10(@opentelemetry/api@1.9.0)(vite@8.0.14(esbuild@0.27.7)(jiti@2.7.0)))
       framer-motion:
         specifier: ^11.15.0
         version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1781,8 +1781,8 @@ packages:
   decode-named-character-reference@1.3.0:
     resolution: {integrity: sha512-GtpQYB283KrPp6nRw50q3U9/VfOutZOe103qlN7BPP6Ad27xYnOIWv4lPzo8HCAL+mMZofJ9KEy30fq6MfaK6Q==}
 
-  deepspace@0.9.0:
-    resolution: {integrity: sha512-GHoxFO/aFvKsUP9ibXQtWs4hAP9nxTZaJGF6IhTHrqfuGkd3OrlXpE9WwlsFtXMs8gkvP1nj5mtKHZLf792MWg==}
+  deepspace@0.9.1:
+    resolution: {integrity: sha512-qA+lxaCkoIRAQX6TVpI5C03qNJ6J8ntC7Kc8KBOHa/KukYm90ARt0Tuu3dWBG7LRbHNOJeczLrEclthAAqbWoQ==}
     engines: {node: '>=22.15.0'}
     hasBin: true
     peerDependencies:
@@ -4022,7 +4022,7 @@ snapshots:
     dependencies:
       character-entities: 2.0.2
 
-  deepspace@0.9.0(@cloudflare/workers-types@4.20260522.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(clsx@2.1.1)(lucide-react@0.460.0(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(tailwind-merge@2.6.1)(vitest@4.1.10(@opentelemetry/api@1.9.0)(vite@8.0.14(esbuild@0.27.7)(jiti@2.7.0))):
+  deepspace@0.9.1(@cloudflare/workers-types@4.20260522.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(clsx@2.1.1)(lucide-react@0.460.0(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(tailwind-merge@2.6.1)(vitest@4.1.10(@opentelemetry/api@1.9.0)(vite@8.0.14(esbuild@0.27.7)(jiti@2.7.0))):
     dependencies:
       '@ai-sdk/anthropic': 2.0.79(zod@4.4.3)
       '@ai-sdk/openai': 2.0.106(zod@4.4.3)
