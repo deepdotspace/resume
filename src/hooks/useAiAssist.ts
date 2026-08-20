@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { integration } from 'deepspace'
+import { TEXT_ASSIST_MODEL_ID } from '../ai/models'
 
 export interface UseAiAssistReturn {
   generate: (prompt: string, maxTokens?: number) => Promise<string | null>
@@ -34,7 +35,7 @@ export function useAiAssist(): UseAiAssistReturn {
     try {
       const res = (await integration.post('openai/chat-completion', {
         messages: [{ role: 'user', content: prompt }],
-        model: 'gpt-4o-mini',
+        model: TEXT_ASSIST_MODEL_ID,
         max_tokens: maxTokens,
       })) as { success?: boolean; data?: { choices?: Array<{ message?: { content?: string } }> }; error?: string }
 
