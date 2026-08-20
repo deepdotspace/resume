@@ -2,13 +2,18 @@
  * useResumeParser — Parse PDF/DOCX resume into structured form data.
  *
  * Pipeline:
- *   PDF: file -> base64 -> anthropic/chat-completion (native PDF support) -> JSON -> ResumeFormData
+ *   PDF: file -> base64 -> anthropic/chat-completion `document` block (native
+ *        PDF support) -> JSON -> ResumeFormData
  *   DOCX: file -> text extraction (client-side) -> openai/chat-completion -> JSON -> ResumeFormData
+ *
+ * Both models come from `src/ai/models.ts`. Never inline a model id here — a
+ * retired literal is a 404 the user only discovers on upload.
  */
 
 import { useState, useCallback } from 'react'
 import { integration } from 'deepspace'
 import type { ResumeFormData } from '../templates'
+import { DOCUMENT_EXTRACTION_MODEL_ID, TEXT_ASSIST_MODEL_ID } from '../ai/models'
 
 const RESUME_EXTRACTION_PROMPT = `Extract resume/CV data from the following and return ONLY valid JSON (no markdown, no explanation).
 Use this exact structure:
@@ -122,11 +127,19 @@ export function useResumeParser(): UseResumeParserReturn {
               { type: 'text', text: RESUME_EXTRACTION_PROMPT },
             ],
           }],
-          model: 'claude-sonnet-4-20250514',
+          model: DOCUMENT_EXTRACTION_MODEL_ID,
           max_tokens: 4000,
-        })) as { success?: boolean; data?: { content?: Array<{ text?: string }> }; error?: string }
+        })) as {
+          success?: boolean
+          data?: { content?: Array<{ type?: string; text?: string }> }
+          error?: string
+        }
 
-        llmText = res?.data?.content?.[0]?.text?.trim() ?? ''
+        // Select the text block by `type`, never by index. The endpoint's
+        // contract is the raw Messages API response, and a reasoning model
+        // puts a `thinking` block ahead of the answer.
+        llmText =
+          res?.data?.content?.find((block) => block?.type === 'text')?.text?.trim() ?? ''
         if (!llmText) {
           setError(res?.error || 'Could not parse resume PDF.')
           return null
@@ -142,7 +155,7 @@ export function useResumeParser(): UseResumeParserReturn {
 
         const res = (await integration.post('openai/chat-completion', {
           messages: [{ role: 'user', content: `${RESUME_EXTRACTION_PROMPT}\n\n---\n\n[File: ${file.name}]\n${rawText}` }],
-          model: 'gpt-4o-mini',
+          model: TEXT_ASSIST_MODEL_ID,
           max_tokens: 4000,
         })) as { success?: boolean; data?: { choices?: Array<{ message?: { content?: string } }> }; error?: string }
 

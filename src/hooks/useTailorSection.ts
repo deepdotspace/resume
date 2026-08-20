@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { integration } from 'deepspace'
 import { AI_PROMPTS } from '../constants'
+import { TEXT_ASSIST_MODEL_ID } from '../ai/models'
 
 function parseJsonArray(str: string): string[] {
   try {
@@ -24,7 +25,7 @@ function parseJsonArray(str: string): string[] {
 async function chatCompletion(prompt: string, maxTokens: number): Promise<{ text: string | null; error: string | null }> {
   const res = (await integration.post('openai/chat-completion', {
     messages: [{ role: 'user', content: prompt }],
-    model: 'gpt-4o-mini',
+    model: TEXT_ASSIST_MODEL_ID,
     max_tokens: maxTokens,
   })) as { success?: boolean; data?: { choices?: Array<{ message?: { content?: string } }> }; error?: string }
 
